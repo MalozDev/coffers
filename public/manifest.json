@@ -1,0 +1,22 @@
+{
+  "name": "Coffers — Personal Finance Tracker",
+  "short_name": "Coffers",
+  "description": "Know where your money went. Know where it's going.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbfff1",
+  "theme_color": "#090c9b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/Money-Logo-Graphics-1-1.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/Money-Logo-Graphics-1-1.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

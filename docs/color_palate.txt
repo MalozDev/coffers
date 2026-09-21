@@ -1,0 +1,1 @@
+primary-#fbfff1,secondary-#090c9b, detailing colors:#b4c5e4,#3c3744,#3066be

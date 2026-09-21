@@ -1,0 +1,164 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Coffers Brand Colors */
+    --color-primary: #fbfff1;
+    --color-secondary: #090c9b;
+    --color-accent: #3066be;
+    --color-neutral: #3c3744;
+    --color-soft-blue: #b4c5e4;
+
+    /* shadcn Theme — Coffers branded */
+    --background: oklch(0.99 0.002 100);          /* #fbfff1 primary */
+    --foreground: oklch(0.25 0.02 280);            /* #3c3744 neutral */
+
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.25 0.02 280);
+
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.25 0.02 280);
+
+    --primary: oklch(0.22 0.15 270);              /* #090c9b secondary */
+    --primary-foreground: oklch(0.99 0.002 100);  /* #fbfff1 */
+
+    --secondary: oklch(0.97 0.005 250);           /* soft blue tint */
+    --secondary-foreground: oklch(0.22 0.15 270); /* secondary */
+
+    --muted: oklch(0.96 0.005 250);
+    --muted-foreground: oklch(0.5 0.01 270);
+
+    --accent: oklch(0.45 0.12 250);               /* #3066be accent */
+    --accent-foreground: oklch(0.99 0.002 100);
+
+    --destructive: oklch(0.58 0.2 25);
+    --destructive-foreground: oklch(0.99 0 0);
+
+    --border: oklch(0.92 0.005 250);
+    --input: oklch(0.92 0.005 250);
+    --ring: oklch(0.45 0.12 250);
+
+    --chart-1: oklch(0.45 0.12 250);              /* accent */
+    --chart-2: oklch(0.22 0.15 270);              /* secondary */
+    --chart-3: oklch(0.6 0.15 150);               /* green */
+    --chart-4: oklch(0.6 0.2 25);                 /* red/orange */
+    --chart-5: oklch(0.7 0.08 250);               /* soft blue */
+
+    --radius: 0.75rem;
+
+    --sidebar: oklch(0.22 0.15 270);
+    --sidebar-foreground: oklch(0.99 0.002 100);
+    --sidebar-primary: oklch(0.45 0.12 250);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.28 0.15 270);
+    --sidebar-accent-foreground: oklch(0.99 0 0);
+    --sidebar-border: oklch(0.28 0.15 270);
+    --sidebar-ring: oklch(0.45 0.12 250);
+
+    --font-sans: var(--font-raleway), "Raleway", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "Fira Code", ui-monospace,
+      SFMono-Regular, monospace;
+  }
+
+  body {
+    @apply antialiased bg-background text-foreground;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-accent;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+@layer components {
+  /* Page container */
+  .page-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6;
+  }
+
+  /* Financial number display */
+  .amount {
+    @apply font-mono font-semibold tracking-tight;
+  }
+  .amount-lg {
+    @apply text-3xl font-mono font-bold tracking-tight;
+  }
+  .amount-positive {
+    @apply text-green-600;
+  }
+  .amount-negative {
+    @apply text-red-500;
+  }
+
+  /* Quick action button */
+  .quick-action {
+    @apply flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 active:scale-95;
+  }
+  .quick-action-income {
+    @apply bg-green-50 text-green-700 border border-green-200 hover:bg-green-100;
+  }
+  .quick-action-expense {
+    @apply bg-red-50 text-red-700 border border-red-200 hover:bg-red-100;
+  }
+
+  /* Section header */
+  .section-header {
+    @apply text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .gradient-brand {
+    @apply bg-gradient-to-br from-primary to-accent;
+  }
+  /* Mobile safe area for bottom nav */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  /* Touch-friendly tap targets */
+  .tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Hide scrollbar on mobile */
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Smooth scrolling on mobile */
+@supports (-webkit-touch-callout: none) {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

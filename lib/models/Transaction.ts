@@ -1,0 +1,84 @@
+import mongoose, { Schema, Document, Model } from "mongoose";
+
+export interface ITransaction extends Document {
+  userId: mongoose.Types.ObjectId;
+  type: "income" | "expense" | "transfer";
+  amount: number;
+  categoryId?: mongoose.Types.ObjectId;
+  accountId: mongoose.Types.ObjectId;
+  toAccountId?: mongoose.Types.ObjectId;
+  description: string;
+  note?: string;
+  date: Date;
+  createdAt: Date;
+}
+
+const TransactionSchema = new Schema<ITransaction>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
+    type: {
+      type: String,
+      enum: ["income", "expense", "transfer"],
+      required: [true, "Transaction type is required"],
+    },
+    amount: {
+      type: Number,
+      required: [true, "Amount is required"],
+      min: [0.01, "Amount must be greater than 0"],
+    },
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: function (this: ITransaction) {
+        return this.type !== "transfer";
+      },
+    },
+    accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      required: [true, "Source account is required"],
+    },
+    toAccountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      required: function (this: ITransaction) {
+        return this.type === "transfer";
+      },
+    },
+    description: {
+      type: String,
+      required: [true, "Description is required"],
+      trim: true,
+      maxlength: [200, "Description cannot exceed 200 characters"],
+    },
+    note: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Note cannot exceed 500 characters"],
+    },
+    date: {
+      type: Date,
+      required: [true, "Date is required"],
+      index: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+TransactionSchema.index({ userId: 1, date: -1 });
+TransactionSchema.index({ userId: 1, type: 1 });
+TransactionSchema.index({ userId: 1, categoryId: 1 });
+TransactionSchema.index({ userId: 1, accountId: 1 });
+
+const Transaction: Model<ITransaction> =
+  mongoose.models.Transaction ||
+  mongoose.model<ITransaction>("Transaction", TransactionSchema);
+
+export default Transaction;
