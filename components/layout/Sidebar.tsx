@@ -50,7 +50,7 @@ function SidebarContent() {
   const pathname = usePathname();
 
   return (
-    <div className="flex flex-col h-full bg-sidebar">
+    <div className="flex flex-col h-full bg-black">
       {/* Brand with Logo */}
       <div className="px-5 py-6">
         <div className="flex items-center gap-3">
@@ -157,7 +157,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <Sheet open={open} onOpenChange={onClose}>
         <SheetContent
           side="left"
-          className="w-72 p-0 bg-sidebar border-sidebar-border"
+          className="w-72 p-0 bg-black text-white border-white/20"
         >
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation</SheetTitle>

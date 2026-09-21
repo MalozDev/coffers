@@ -32,11 +32,20 @@ function getEndOfMonth(date: Date) {
 }
 
 function getPrevPeriod(start: Date, end: Date) {
-  const diff = end.getTime() - start.getTime();
+  const diff = end.getTime() - start.getTime() + 1;
   return {
     prevStart: new Date(start.getTime() - diff),
-    prevEnd: new Date(end.getTime() - diff - 1),
+    prevEnd: new Date(start.getTime() - 1),
   };
+}
+
+function parseDateParam(dateParam: string | null) {
+  if (!dateParam) return new Date();
+
+  const [year, month, day] = dateParam.split("-").map(Number);
+  if (![year, month, day].every(Number.isInteger)) return new Date();
+
+  return new Date(year, month - 1, day);
 }
 
 // GET /api/analysis?period=daily|weekly|monthly&date=2024-01-15
@@ -52,7 +61,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const period = (searchParams.get("period") || "monthly") as "daily" | "weekly" | "monthly";
     const dateParam = searchParams.get("date");
-    const referenceDate = dateParam ? new Date(dateParam) : new Date();
+    const referenceDate = parseDateParam(dateParam);
 
     // Determine current and previous period ranges
     let start: Date, end: Date;

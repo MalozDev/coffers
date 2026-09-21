@@ -23,6 +23,15 @@ import {
 
 function formatK(n: number) { return `K${Math.abs(n).toLocaleString()}`; }
 
+async function fetchJson(url: string, options?: RequestInit) {
+  const response = await fetch(url, options);
+  const result = await response.json();
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || "Request failed");
+  }
+  return result.data;
+}
+
 // ─── Main Analysis Page ────────────────────────────────────
 export default function AnalysisPage() {
   return (
@@ -55,18 +64,23 @@ export default function AnalysisPage() {
 function OverviewTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("monthly");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
+    let active = true;
     setLoading(true);
-    fetch(`/api/analysis?period=${period}&date=${date}`)
-      .then((r) => r.json())
-      .then((res) => { if (res.success) setData(res.data); setLoading(false); });
+    setError(false);
+    fetchJson(`/api/analysis?period=${period}&date=${date}`)
+      .then((result) => { if (active) setData(result); })
+      .catch(() => { if (active) { setData(null); setError(true); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [period, date]);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3, 4].map((i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">No data</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load analysis. Please try again." : "No data"}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -146,16 +160,17 @@ function OverviewTab() {
 function PatternsTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/intelligence/patterns").then((r) => r.json()).then((res) => {
-      if (res.success) setData(res.data);
-      setLoading(false);
-    });
+    fetchJson("/api/intelligence/patterns")
+      .then(setData)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">Not enough data to detect patterns yet.</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load patterns. Please try again." : "Not enough data to detect patterns yet."}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -286,16 +301,17 @@ function PatternsTab() {
 function ForecastTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    fetch("/api/intelligence/forecast").then((r) => r.json()).then((res) => {
-      if (res.success) setData(res.data);
-      setLoading(false);
-    });
+    fetchJson("/api/intelligence/forecast")
+      .then(setData)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3].map((i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">No forecast data</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load forecast. Please try again." : "No forecast data"}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -403,14 +419,16 @@ function SimulateTab() {
     e.preventDefault();
     if (!amount) return;
     setLoading(true);
-    const res = await fetch("/api/intelligence/simulate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amount: parseFloat(amount), description }),
-    });
-    const data = await res.json();
-    if (data.success) setResult(data.data);
-    setLoading(false);
+    try {
+      const data = await fetchJson("/api/intelligence/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: parseFloat(amount), description }),
+      });
+      setResult(data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -526,16 +544,16 @@ function AskTab() {
     setQuestion("");
     setMessages((prev) => [...prev, { role: "user", text: q }]);
     setLoading(true);
-    const res = await fetch("/api/intelligence/ask", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question: q }),
-    });
-    const data = await res.json();
-    if (data.success) {
-      setMessages((prev) => [...prev, { role: "coffers", text: data.data.answer }]);
+    try {
+      const data = await fetchJson("/api/intelligence/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: q }),
+      });
+      setMessages((prev) => [...prev, { role: "coffers", text: data.answer }]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const suggestions = [
