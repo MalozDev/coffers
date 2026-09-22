@@ -49,8 +49,8 @@ export default function SpendingByCategory({ data }: SpendingByCategoryProps) {
   }));
 
   return (
-    <div className="w-full">
-      <ResponsiveContainer width="100%" height={260}>
+    <div className="w-full min-w-0">
+      <ResponsiveContainer width="100%" height={260} minWidth={0}>
         <PieChart>
           <Pie
             data={chartData}

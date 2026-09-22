@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import connectToDatabase from "@/lib/db/connect";
-import { Transaction } from "@/lib/models";
+import { Transaction, Account } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
 
 function getStartOfDay(date: Date) {
@@ -80,11 +81,50 @@ export async function GET(request: NextRequest) {
 
     const { prevStart, prevEnd } = getPrevPeriod(start, end);
 
+    // Aggregation pipelines do not cast strings — userId must be an ObjectId
+    const userIdOid = new Types.ObjectId(userId);
+
+    // All-time totals + money sitting in savings accounts. Transactions only
+    // exist from account creation onwards, so no extra date bound is needed.
+    const [allTimeAgg, savingsAccounts] = await Promise.all([
+      Transaction.aggregate([
+        { $match: { userId: userIdOid } },
+        { $group: { _id: "$type", total: { $sum: "$amount" } } },
+      ]),
+      Account.find({ userId, type: "savings" }).lean(),
+    ]);
+    const allTimeMap: Record<string, number> = {};
+    allTimeAgg.forEach((a: { _id: string; total: number }) => {
+      allTimeMap[a._id] = a.total;
+    });
+    const allTime = {
+      income: allTimeMap.income || 0,
+      expenses: allTimeMap.expense || 0,
+    };
+
+    let savingsTotal = 0;
+    if (savingsAccounts.length > 0) {
+      const savingsOids = savingsAccounts.map((a) => a._id);
+      const savingsStr = new Set(savingsOids.map(String));
+      for (const a of savingsAccounts) savingsTotal += a.openingBalance;
+      const savingsTxs = await Transaction.find({
+        $or: [{ accountId: { $in: savingsOids } }, { toAccountId: { $in: savingsOids } }],
+      }).lean();
+      for (const t of savingsTxs) {
+        const fromSav = t.accountId ? savingsStr.has(String(t.accountId)) : false;
+        const toSav = t.toAccountId ? savingsStr.has(String(t.toAccountId)) : false;
+        if (t.type === "income" && fromSav) savingsTotal += t.amount;
+        else if (t.type === "expense" && fromSav) savingsTotal -= t.amount;
+        else if (t.type === "transfer" && fromSav && !toSav) savingsTotal -= t.amount;
+        else if (t.type === "transfer" && toSav && !fromSav) savingsTotal += t.amount;
+      }
+    }
+
     // Current period aggregation
     const currentAgg = await Transaction.aggregate([
       {
         $match: {
-          userId,
+          userId: userIdOid,
           date: { $gte: start, $lte: end },
         },
       },
@@ -101,7 +141,7 @@ export async function GET(request: NextRequest) {
     const prevAgg = await Transaction.aggregate([
       {
         $match: {
-          userId,
+          userId: userIdOid,
           date: { $gte: prevStart, $lte: prevEnd },
         },
       },
@@ -118,7 +158,7 @@ export async function GET(request: NextRequest) {
     const categoryBreakdown = await Transaction.aggregate([
       {
         $match: {
-          userId,
+          userId: userIdOid,
           type: "expense",
           date: { $gte: start, $lte: end },
         },
@@ -233,6 +273,8 @@ export async function GET(request: NextRequest) {
         categoryBreakdown: categoryWithPercent,
         insights,
         topCategory,
+        allTime,
+        savingsTotal,
       },
     });
   } catch (error) {

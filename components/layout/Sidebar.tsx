@@ -10,6 +10,7 @@ import {
   ArrowUpCircle,
   Activity,
   PiggyBank,
+  Coins,
   Target,
   Bell,
   BarChart3,
@@ -26,19 +27,20 @@ import {
 } from "@/components/ui/sheet";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/income", label: "Income", icon: ArrowDownCircle },
-  { href: "/expenses", label: "Expenses", icon: ArrowUpCircle },
-  { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/budgets", label: "Budgets", icon: PiggyBank },
-  { href: "/goals", label: "Goals", icon: Target },
-  { href: "/reminders", label: "Reminders", icon: Bell },
-  { href: "/analysis", label: "Analysis", icon: BarChart3 },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard/income", label: "Income", icon: ArrowDownCircle },
+  { href: "/dashboard/expenses", label: "Expenses", icon: ArrowUpCircle },
+  { href: "/dashboard/activity", label: "Activity", icon: Activity },
+  { href: "/dashboard/budgets", label: "Budgets", icon: PiggyBank },
+  { href: "/dashboard/savings", label: "Savings", icon: Coins },
+  { href: "/dashboard/goals", label: "Goals", icon: Target },
+  { href: "/dashboard/reminders", label: "Reminders", icon: Bell },
+  { href: "/dashboard/analysis", label: "Analysis", icon: BarChart3 },
 ];
 
 const secondaryItems = [
-  { href: "/categories", label: "Categories", icon: Tag },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/dashboard/categories", label: "Categories", icon: Tag },
+  { href: "/dashboard/settings", label: "Settings", icon: Settings },
 ];
 
 interface SidebarProps {
@@ -46,7 +48,11 @@ interface SidebarProps {
   onClose: () => void;
 }
 
-function SidebarContent() {
+interface SidebarContentProps {
+  onClose?: () => void;
+}
+
+function SidebarContent({ onClose }: SidebarContentProps) {
   const pathname = usePathname();
 
   return (
@@ -83,6 +89,7 @@ function SidebarContent() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isActive
@@ -107,6 +114,7 @@ function SidebarContent() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 isActive
@@ -154,7 +162,12 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       </aside>
 
       {/* Mobile — sheet overlay */}
-      <Sheet open={open} onOpenChange={onClose}>
+      <Sheet
+        open={open}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) onClose();
+        }}
+      >
         <SheetContent
           side="left"
           className="w-72 p-0 bg-black text-white border-white/20"
@@ -162,7 +175,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation</SheetTitle>
           </SheetHeader>
-          <SidebarContent />
+          <SidebarContent onClose={onClose} />
         </SheetContent>
       </Sheet>
     </>

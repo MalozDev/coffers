@@ -49,6 +49,7 @@ export default function IncomePage() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -87,6 +88,7 @@ export default function IncomePage() {
       });
       const data = await res.json();
       if (data.success) {
+        setError(null);
         setShowForm(false);
         setAmount("");
         setDescription("");
@@ -96,9 +98,15 @@ export default function IncomePage() {
         if (txs.success) setTransactions(txs.data.transactions);
         const accs = await fetch("/api/accounts").then((r) => r.json());
         if (accs.success) setAccounts(accs.data.accounts);
+      } else {
+        const details = data.details
+          ? Object.values(data.details).flat().join(" ")
+          : "";
+        setError(details || data.error || "Failed to save income. Please try again.");
       }
     } catch (err) {
       console.error(err);
+      setError("Network error. Please check your connection and try again.");
     }
     setSaving(false);
   };
@@ -110,11 +118,17 @@ export default function IncomePage() {
           <h1 className="text-xl font-bold text-foreground">Income</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Track your income sources</p>
         </div>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+        <Button size="sm" onClick={() => { setError(null); setShowForm(!showForm); }}>
           {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           {showForm ? "Cancel" : "Add"}
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* Add Income Form */}
       {showForm && (

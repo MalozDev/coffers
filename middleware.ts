@@ -19,9 +19,19 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("coffers-token")?.value;
 
+  let hasValidToken = false;
+  if (token) {
+    try {
+      const payload = JSON.parse(Buffer.from(token, "base64").toString());
+      hasValidToken = Boolean(payload.userId && payload.exp > Date.now());
+    } catch {
+      hasValidToken = false;
+    }
+  }
+
   // Protected routes — redirect to login if no token
   const isProtected = protectedRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"));
-  if (isProtected && !token) {
+  if (isProtected && !hasValidToken) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
     return NextResponse.redirect(loginUrl);

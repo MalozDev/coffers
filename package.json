@@ -4,7 +4,7 @@
   "private": true,
   "description": "Coffers — A modern personal finance tracker that learns your spending to help you make better financial decisions.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

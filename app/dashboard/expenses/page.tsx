@@ -27,6 +27,7 @@ export default function ExpensesPage() {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -65,14 +66,23 @@ export default function ExpensesPage() {
       });
       const data = await res.json();
       if (data.success) {
+        setError(null);
         setShowForm(false);
         setAmount("");
         setDescription("");
         setNote("");
         const txs = await fetch("/api/transactions?type=expense&limit=20").then((r) => r.json());
         if (txs.success) setTransactions(txs.data.transactions);
+      } else {
+        const details = data.details
+          ? Object.values(data.details).flat().join(" ")
+          : "";
+        setError(details || data.error || "Failed to save expense. Please try again.");
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error(err);
+      setError("Network error. Please check your connection and try again.");
+    }
     setSaving(false);
   };
 
@@ -83,11 +93,17 @@ export default function ExpensesPage() {
           <h1 className="text-xl font-bold text-foreground">Expenses</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Track your spending</p>
         </div>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
+        <Button size="sm" onClick={() => { setError(null); setShowForm(!showForm); }}>
           {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           {showForm ? "Cancel" : "Add"}
         </Button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <Card>

@@ -1,15 +1,48 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export interface IBudgetItem {
+  _id: mongoose.Types.ObjectId;
+  name: string;
+  price: number;
+  bought: boolean;
+  boughtAt?: Date;
+  addedAt: Date;
+}
+
 export interface IBudget extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
-  categoryId: mongoose.Types.ObjectId;
-  amount: number;
-  period: "daily" | "weekly" | "monthly";
+  categoryId?: mongoose.Types.ObjectId;
+  amount?: number;
+  period?: "daily" | "weekly" | "monthly";
   startDate: Date;
   endDate?: Date;
+  /* Shopping-list style budget */
+  items: IBudgetItem[];
+  status: "active" | "closed";
+  closedAt?: Date;
   createdAt: Date;
 }
+
+const BudgetItemSchema = new Schema<IBudgetItem>(
+  {
+    name: {
+      type: String,
+      required: [true, "Item name is required"],
+      trim: true,
+      maxlength: [100, "Item name cannot exceed 100 characters"],
+    },
+    price: {
+      type: Number,
+      required: [true, "Item price is required"],
+      min: [0.01, "Item price must be greater than 0"],
+    },
+    bought: { type: Boolean, default: false },
+    boughtAt: { type: Date },
+    addedAt: { type: Date, default: Date.now },
+  },
+  { _id: true }
+);
 
 const BudgetSchema = new Schema<IBudget>(
   {
@@ -25,28 +58,38 @@ const BudgetSchema = new Schema<IBudget>(
       trim: true,
       maxlength: [100, "Budget name cannot exceed 100 characters"],
     },
+    /* Legacy category-limit fields — optional so new shopping-list budgets
+       (name + items + status) can be created without them. */
     categoryId: {
       type: Schema.Types.ObjectId,
       ref: "Category",
-      required: [true, "Category is required"],
+      required: false,
     },
     amount: {
       type: Number,
-      required: [true, "Budget amount is required"],
+      required: false,
       min: [0.01, "Budget amount must be greater than 0"],
     },
     period: {
       type: String,
       enum: ["daily", "weekly", "monthly"],
-      required: [true, "Budget period is required"],
+      required: false,
     },
     startDate: {
       type: Date,
-      required: [true, "Start date is required"],
+      default: Date.now,
     },
     endDate: {
       type: Date,
     },
+    /* Shopping-list budget */
+    items: { type: [BudgetItemSchema], default: [] },
+    status: {
+      type: String,
+      enum: ["active", "closed"],
+      default: "active",
+    },
+    closedAt: { type: Date },
   },
   {
     timestamps: true,

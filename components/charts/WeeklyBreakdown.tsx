@@ -46,7 +46,8 @@ export default function WeeklyBreakdown({ data }: WeeklyBreakdownProps) {
   if (!data || data.length === 0) return null;
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <div className="w-full min-w-0">
+    <ResponsiveContainer width="100%" height={200} minWidth={0}>
       <BarChart data={data} barGap={4}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
         <XAxis
@@ -67,5 +68,6 @@ export default function WeeklyBreakdown({ data }: WeeklyBreakdownProps) {
         <Bar dataKey="spending" fill="#ef4444" radius={[4, 4, 0, 0]} name="Spending" />
       </BarChart>
     </ResponsiveContainer>
+    </div>
   );
 }

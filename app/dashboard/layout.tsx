@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import BottomNav from "@/components/layout/BottomNav";
@@ -11,6 +12,32 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close the mobile menu whenever the route changes
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const validateSession = async () => {
+      const response = await fetch("/api/dashboard", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (response.status === 401) {
+        window.location.replace(`/login?from=${encodeURIComponent(pathname)}`);
+      }
+    };
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) validateSession();
+    };
+
+    validateSession();
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background">

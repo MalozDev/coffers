@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import connectToDatabase from "@/lib/db/connect";
 import { Transaction, Account } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
@@ -19,6 +20,9 @@ export async function GET(request: NextRequest) {
     const daysInMonth = monthEnd.getDate();
     const dayOfMonth = now.getDate();
     const daysRemaining = daysInMonth - dayOfMonth;
+
+    // Aggregation pipelines do not cast strings — userId must be an ObjectId
+    const userIdOid = new Types.ObjectId(userId);
 
     // Current month transactions
     const monthTransactions = await Transaction.find({
@@ -74,7 +78,7 @@ export async function GET(request: NextRequest) {
         const txAgg = await Transaction.aggregate([
           {
             $match: {
-              userId,
+              userId: userIdOid,
               $or: [
                 { accountId: account._id, type: { $in: ["income", "expense"] } },
                 { toAccountId: account._id, type: "transfer" },

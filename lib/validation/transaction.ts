@@ -19,7 +19,8 @@ export const transactionSchema = z.object({
     .max(500, "Note cannot exceed 500 characters")
     .trim()
     .optional(),
-  date: z.date({
+  // coerce: the client sends an ISO string over JSON, not a Date instance
+  date: z.coerce.date({
     error: "Date is required",
   }),
 });
@@ -46,7 +47,7 @@ export const transferSchema = z
       .max(200, "Description cannot exceed 200 characters")
       .trim()
       .optional(),
-    date: z.date({
+    date: z.coerce.date({
       error: "Date is required",
     }),
   })

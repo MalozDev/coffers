@@ -22,6 +22,28 @@ export async function GET(request: NextRequest) {
     const now = new Date();
     const budgetsInProgress = await Promise.all(
       budgets.map(async (budget) => {
+        // Shopping-list budgets: item totals + status (legacy docs have no status)
+        const items = budget.items || [];
+        const itemsTotal = items.reduce((s, it) => s + it.price, 0);
+        const markedItems = items.filter((it) => it.bought);
+        const markedTotal = markedItems.reduce((s, it) => s + it.price, 0);
+        const status = budget.status || "active";
+
+        // Legacy category-limit budgets: spending progress
+        if (!budget.categoryId || !budget.amount) {
+          return {
+            ...budget,
+            status,
+            items,
+            itemsTotal,
+            markedCount: markedItems.length,
+            markedTotal,
+            spentAmount: 0,
+            percentage: 0,
+            remaining: budget.amount || 0,
+          };
+        }
+
         // Determine date range based on period
         let startDate = new Date(budget.startDate);
         if (budget.period === "daily") {
@@ -52,6 +74,11 @@ export async function GET(request: NextRequest) {
 
         return {
           ...budget,
+          status,
+          items,
+          itemsTotal,
+          markedCount: markedItems.length,
+          markedTotal,
           spentAmount,
           percentage,
           remaining: Math.max(budget.amount - spentAmount, 0),
@@ -81,24 +108,44 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, categoryId, amount, period, startDate } = body;
+    const { name, categoryId, amount, period, startDate, items } = body;
 
-    if (!name || !categoryId || !amount || !period || !startDate) {
+    if (!name || !name.trim()) {
       return NextResponse.json(
-        { success: false, error: "All fields are required" },
+        { success: false, error: "Budget name is required" },
         { status: 400 }
       );
     }
+    // Legacy category budgets still need amount + period
+    if (categoryId && (!amount || !period)) {
+      return NextResponse.json(
+        { success: false, error: "Amount and period are required for category budgets" },
+        { status: 400 }
+      );
+    }
+
+    // Optional starting items: [{ name, price }]
+    const cleanItems = Array.isArray(items)
+      ? items
+          .filter((i: { name?: string; price?: number }) => i?.name && Number(i?.price) > 0)
+          .map((i: { name: string; price: number }) => ({
+            name: String(i.name).trim().slice(0, 100),
+            price: Number(i.price),
+            addedAt: new Date(),
+          }))
+      : [];
 
     await connectToDatabase();
 
     const budget = await Budget.create({
       userId,
-      name,
-      categoryId,
-      amount,
-      period,
-      startDate: new Date(startDate),
+      name: name.trim(),
+      categoryId: categoryId || undefined,
+      amount: amount ? Number(amount) : undefined,
+      period: period || undefined,
+      startDate: startDate ? new Date(startDate) : new Date(),
+      items: cleanItems,
+      status: "active",
     });
 
     return NextResponse.json(
@@ -108,7 +155,11 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Budget creation error:", error);
     return NextResponse.json(
-      { success: false, error: "Failed to create budget" },
+      {
+        success: false,
+        error: "Failed to create budget",
+        details: process.env.NODE_ENV !== "production" ? (error as Error).message : undefined,
+      },
       { status: 500 }
     );
   }

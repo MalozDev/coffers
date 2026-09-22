@@ -13,51 +13,61 @@
     --color-neutral: #3c3744;
     --color-soft-blue: #b4c5e4;
 
-    /* shadcn Theme — Coffers branded */
-    --background: oklch(0.99 0.002 100);          /* #fbfff1 primary */
-    --foreground: oklch(0.25 0.02 280);            /* #3c3744 neutral */
+    /* shadcn Theme — Coffers branded
+     *
+     * IMPORTANT: these hold bare **oklch channels**, not full colors.
+     * tailwind.config.ts wraps them as `oklch(var(--x) / <alpha-value>)`,
+     * which is the only format that works in Tailwind v3 and also lets
+     * opacity modifiers (`bg-muted/50`) compile correctly. Do NOT change
+     * them back to `oklch(...)` values — `hsl(var(--x))`/`oklch(var(--x))`
+     * around a full color function is invalid CSS (it used to make every
+     * themed color compute to transparent). The only consumer that needs a
+     * full color (button.tsx color-mix) wraps them back in `oklch()`.
+     */
+    --background: 0.99 0.002 100;          /* #fbfff1 primary */
+    --foreground: 0.25 0.02 280;            /* #3c3744 neutral */
 
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.25 0.02 280);
+    --card: 1 0 0;
+    --card-foreground: 0.25 0.02 280;
 
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.25 0.02 280);
+    --popover: 1 0 0;
+    --popover-foreground: 0.25 0.02 280;
 
-    --primary: oklch(0.22 0.15 270);              /* #090c9b secondary */
-    --primary-foreground: oklch(0.99 0.002 100);  /* #fbfff1 */
+    --primary: 0.22 0.15 270;              /* #090c9b secondary */
+    --primary-foreground: 0.99 0.002 100;  /* #fbfff1 */
 
-    --secondary: oklch(0.97 0.005 250);           /* soft blue tint */
-    --secondary-foreground: oklch(0.22 0.15 270); /* secondary */
+    --secondary: 0.97 0.005 250;           /* soft blue tint */
+    --secondary-foreground: 0.22 0.15 270; /* secondary */
 
-    --muted: oklch(0.96 0.005 250);
-    --muted-foreground: oklch(0.5 0.01 270);
+    --muted: 0.96 0.005 250;
+    --muted-foreground: 0.5 0.01 270;
 
-    --accent: oklch(0.45 0.12 250);               /* #3066be accent */
-    --accent-foreground: oklch(0.99 0.002 100);
+    --accent: 0.45 0.12 250;               /* #3066be accent */
+    --accent-foreground: 0.99 0.002 100;
 
-    --destructive: oklch(0.58 0.2 25);
-    --destructive-foreground: oklch(0.99 0 0);
+    --destructive: 0.58 0.2 25;
+    --destructive-foreground: 0.99 0 0;
 
-    --border: oklch(0.92 0.005 250);
-    --input: oklch(0.92 0.005 250);
-    --ring: oklch(0.45 0.12 250);
+    --border: 0.92 0.005 250;
+    --input: 0.92 0.005 250;
+    --ring: 0.45 0.12 250;
 
-    --chart-1: oklch(0.45 0.12 250);              /* accent */
-    --chart-2: oklch(0.22 0.15 270);              /* secondary */
-    --chart-3: oklch(0.6 0.15 150);               /* green */
-    --chart-4: oklch(0.6 0.2 25);                 /* red/orange */
-    --chart-5: oklch(0.7 0.08 250);               /* soft blue */
+    --chart-1: 0.45 0.12 250;              /* accent */
+    --chart-2: 0.22 0.15 270;              /* secondary */
+    --chart-3: 0.6 0.15 150;               /* green */
+    --chart-4: 0.6 0.2 25;                 /* red/orange */
+    --chart-5: 0.7 0.08 250;               /* soft blue */
 
     --radius: 0.75rem;
 
-    --sidebar: oklch(0.22 0.15 270);
-    --sidebar-foreground: oklch(0.99 0.002 100);
-    --sidebar-primary: oklch(0.45 0.12 250);
-    --sidebar-primary-foreground: oklch(0.99 0 0);
-    --sidebar-accent: oklch(0.28 0.15 270);
-    --sidebar-accent-foreground: oklch(0.99 0 0);
-    --sidebar-border: oklch(0.28 0.15 270);
-    --sidebar-ring: oklch(0.45 0.12 250);
+    --sidebar: 0.22 0.15 270;
+    --sidebar-foreground: 0.99 0.002 100;
+    --sidebar-primary: 0.45 0.12 250;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.28 0.15 270;
+    --sidebar-accent-foreground: 0.99 0 0;
+    --sidebar-border: 0.28 0.15 270;
+    --sidebar-ring: 0.45 0.12 250;
 
     --font-sans: var(--font-raleway), "Raleway", system-ui, sans-serif;
     --font-mono: "JetBrains Mono", "Fira Code", ui-monospace,

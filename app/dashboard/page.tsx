@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
+  Activity,
   ArrowDownCircle,
   ArrowUpCircle,
+  Bell,
+  Plus,
+  RefreshCw,
   TrendingUp,
   Wallet,
-  Eye,
-  ChevronRight,
-  RefreshCw,
 } from "lucide-react";
+import QuickEntryModal from "@/components/quick-entry/QuickEntryModal";
 
 interface DashboardData {
+  user: { name: string; email: string } | null;
   balance: {
     total: number;
     accounts: { name: string; type: string; balance: number }[];
@@ -23,15 +26,11 @@ interface DashboardData {
   };
   today: { income: number; expenses: number };
   month: { income: number; expenses: number };
-  lifetime: { income: number; expenses: number };
-  recentTransactions: Array<{
+  expectedIncome: Array<{
     _id: string;
-    type: "income" | "expense" | "transfer";
+    source: string;
     amount: number;
-    description: string;
-    date: string;
-    categoryId?: { name: string; color: string; icon: string };
-    accountId?: { name: string };
+    expectedDate: string;
   }>;
   upcomingReminders: Array<{
     _id: string;
@@ -39,17 +38,11 @@ interface DashboardData {
     amount: number;
     dueDate: string;
   }>;
-  expectedIncome: Array<{
-    _id: string;
-    source: string;
-    amount: number;
-    expectedDate: string;
-  }>;
   insights: string[];
 }
 
 function formatK(amount: number): string {
-  return `K${amount.toLocaleString()}`;
+  return `K${Math.round(amount || 0).toLocaleString()}`;
 }
 
 function getGreeting(): string {
@@ -62,8 +55,11 @@ function getGreeting(): string {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [incomeOpen, setIncomeOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [showGreeting, setShowGreeting] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch("/api/dashboard")
       .then((r) => r.json())
       .then((res) => {
@@ -73,15 +69,28 @@ export default function DashboardPage() {
       .catch(() => setLoading(false));
   }, []);
 
+  useEffect(load, [load]);
+
+  // Greeting: shown on the first dashboard visit of each day, then hidden
+  useEffect(() => {
+    try {
+      const key = `coffers:greeting:${new Date().toDateString()}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        setShowGreeting(true);
+      }
+    } catch {
+      // private mode etc. — still greet once per mount
+      setShowGreeting(true);
+    }
+  }, []);
+
   if (loading) {
     return (
-      <div className="space-y-5">
-        <div className="h-8 w-48 bg-muted rounded animate-pulse" />
-        <div className="h-36 bg-muted rounded-2xl animate-pulse" />
-        <div className="grid grid-cols-2 gap-3">
-          <div className="h-14 bg-muted rounded-xl animate-pulse" />
-          <div className="h-14 bg-muted rounded-xl animate-pulse" />
-        </div>
+      <div className="space-y-4">
+        <div className="h-40 bg-muted rounded-2xl animate-pulse" />
+        <div className="h-12 bg-muted rounded-xl animate-pulse" />
+        <div className="h-32 bg-muted rounded-2xl animate-pulse" />
       </div>
     );
   }
@@ -90,243 +99,222 @@ export default function DashboardPage() {
     return (
       <div className="text-center py-20 text-muted-foreground">
         <p>Failed to load dashboard</p>
-        <Button variant="ghost" size="sm" onClick={() => window.location.reload()}>
+        <Button variant="ghost" size="sm" onClick={load}>
           <RefreshCw className="h-4 w-4 mr-1" /> Retry
         </Button>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-5">
-      {/* Greeting */}
-      <div>
-        <h1 className="text-xl font-bold text-foreground">
-          {getGreeting()} 👋
-        </h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Here&apos;s your financial overview
-        </p>
-      </div>
+  // ── Derived money figures ─────────────────────────────────
+  const sumByType = (types: string[]) =>
+    data.balance.accounts
+      .filter((a) => types.includes(a.type))
+      .reduce((s, a) => s + a.balance, 0);
 
-      {/* Balance Card */}
-      <Card className="bg-gradient-to-br from-background to-accent/10 border-accent/20 overflow-hidden">
-        <CardContent className="p-5">
-          <div className="flex items-center gap-2 mb-1">
-            <Wallet className="h-4 w-4 text-accent" />
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-              Available Now
+  const cash = sumByType(["cash"]);
+  const mobile = sumByType(["mobile_money"]);
+  const bank = sumByType(["bank"]);
+  const savings = sumByType(["savings"]);
+  const other =
+    data.balance.total - (cash + mobile + bank + savings);
+  const available = cash + mobile + bank + other;
+  const netWorth = data.balance.total + data.balance.expected;
+  const committed = data.month.expenses;
+  const firstName = data.user?.name?.split(" ")[0] || "";
+
+  const upcomingCount = data.upcomingReminders.length;
+
+  return (
+    <div className="space-y-3">
+      {/* Greeting — first dashboard visit of the day only */}
+      {showGreeting && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
+            Your money, at a glance
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-foreground mt-1">
+            {getGreeting()}
+            {firstName ? `, ${firstName}` : ""}
+          </h1>
+        </div>
+      )}
+
+      {/* Balance card */}
+      <Card className="border border-blue-500/50 bg-gray-700 text-green-400 shadow-xl">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-white/70">
+              <Wallet className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-[0.16em]">
+                Available balance
+              </span>
+            </div>
+            <span className="text-[10px] rounded-full border border-white/20 px-2 py-0.5 text-white/70">
+              Live
             </span>
           </div>
-          <p className="text-3xl sm:text-4xl font-bold text-foreground font-mono tracking-tight">
-            {formatK(data.balance.total)}
+
+          <p className="text-3xl sm:text-4xl font-bold font-mono tracking-tight mt-1">
+            {formatK(available)}
           </p>
-          <div className="flex gap-5 mt-3">
-            <div>
-              <p className="text-[11px] text-muted-foreground">Expected</p>
-              <p className="text-sm font-semibold text-green-600 font-mono">
-                + {formatK(data.balance.expected)}
+
+          {/* Little-text breakdown: what makes up the available balance */}
+          <p className="text-[11px] text-white/70 mt-1.5 leading-relaxed">
+            Cash {formatK(cash)} · Mobile {formatK(mobile)} · Bank {formatK(bank)}
+            {other > 0 ? ` · Other ${formatK(other)}` : ""}
+          </p>
+
+          {/* Net worth (balance + expected) with expected below in small text */}
+          <div className="border-t border-white/10 mt-2 pt-2 flex items-baseline justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] text-white/60 uppercase tracking-wider">
+                Net worth
+              </p>
+              <p className="text-[11px] text-white/60 mt-0.5">
+                + {formatK(data.balance.expected)} expected · {formatK(savings)} saved
               </p>
             </div>
-            <div>
-              <p className="text-[11px] text-muted-foreground">Committed</p>
-              <p className="text-sm font-semibold text-red-500 font-mono">
-                − {formatK(data.balance.committed)}
-              </p>
-            </div>
+            <p className="text-xl sm:text-2xl font-bold font-mono shrink-0">
+              {formatK(netWorth)}
+            </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
+      {/* Quick actions — open quick-entry modals (bordered buttons) */}
       <div className="grid grid-cols-2 gap-3">
-        <Button variant="secondary" className="h-14 text-sm font-semibold gap-2">
-          <ArrowDownCircle className="h-5 w-5 text-green-600" />
-          + Income
+        <Button
+          variant="outline"
+          className="h-12 border-2 border-green-500 bg-green-50 text-green-700 hover:bg-green-100 hover:text-green-700 text-sm font-semibold"
+          onClick={() => setIncomeOpen(true)}
+        >
+          <ArrowDownCircle className="h-5 w-5" /> Add income
+          <Plus className="h-4 w-4" />
         </Button>
-        <Button variant="destructive" className="h-14 text-sm font-semibold gap-2">
-          <ArrowUpCircle className="h-5 w-5" />
-          − Expense
+        <Button
+          variant="outline"
+          className="h-12 border-2 border-destructive/60 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive text-sm font-semibold"
+          onClick={() => setExpenseOpen(true)}
+        >
+          <ArrowUpCircle className="h-5 w-5" /> Log expense
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Today & Month */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card size="sm">
-          <CardContent className="p-3">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+      {/* Today / This month — wrapped in a single border + committed out */}
+      <div className="rounded-2xl border border-border overflow-hidden">
+        <div className="grid grid-cols-2 divide-x divide-border">
+          <div className="p-3">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
               Today
             </p>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ArrowDownCircle className="h-3 w-3 text-green-500" /> In
-                </span>
-                <span className="text-sm font-mono font-semibold text-green-600">
-                  + {formatK(data.today.income)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ArrowUpCircle className="h-3 w-3 text-red-500" /> Out
-                </span>
-                <span className="text-sm font-mono font-semibold text-red-500">
-                  − {formatK(data.today.expenses)}
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ArrowDownCircle className="h-3 w-3 text-green-500" /> In
+              </span>
+              <span className="text-sm font-mono font-semibold text-green-600">
+                + {formatK(data.today.income)}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-        <Card size="sm">
-          <CardContent className="p-3">
-            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              This Month
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ArrowUpCircle className="h-3 w-3 text-red-500" /> Out
+              </span>
+              <span className="text-sm font-mono font-semibold text-red-500">
+                − {formatK(data.today.expenses)}
+              </span>
+            </div>
+          </div>
+          <div className="p-3">
+            <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+              This month
             </p>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ArrowDownCircle className="h-3 w-3 text-green-500" /> In
-                </span>
-                <span className="text-sm font-mono font-semibold text-green-600">
-                  + {formatK(data.month.income)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <ArrowUpCircle className="h-3 w-3 text-red-500" /> Out
-                </span>
-                <span className="text-sm font-mono font-semibold text-red-500">
-                  − {formatK(data.month.expenses)}
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ArrowDownCircle className="h-3 w-3 text-green-500" /> In
+              </span>
+              <span className="text-sm font-mono font-semibold text-green-600">
+                + {formatK(data.month.income)}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center justify-between mt-1">
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <ArrowUpCircle className="h-3 w-3 text-red-500" /> Out
+              </span>
+              <span className="text-sm font-mono font-semibold text-red-500">
+                − {formatK(data.month.expenses)}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="border-t px-3 py-2 flex items-center justify-between">
+          <span className="text-xs font-medium text-muted-foreground">
+            Committed out · this month
+          </span>
+          <span className="text-sm font-mono font-bold text-red-500">
+            − {formatK(committed)}
+          </span>
+        </div>
       </div>
 
-      {/* Insight */}
-      {data.insights.length > 0 && (
-        <Card className="border-accent/20 bg-accent/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="p-2 rounded-lg bg-accent/10 shrink-0">
-                <TrendingUp className="h-4 w-4 text-accent" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Coffers noticed</p>
-                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
-                  {data.insights[0]}
-                </p>
-                <button className="mt-2 text-xs font-semibold text-accent flex items-center gap-1 active:opacity-70">
-                  <Eye className="h-3.5 w-3.5" /> View analysis
-                </button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Expected Income */}
-      {data.expectedIncome.length > 0 && (
-        <div>
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Expected Income
-          </h2>
-          <Card>
-            <div className="divide-y divide-border">
-              {data.expectedIncome.slice(0, 3).map((item) => (
-                <div key={item._id} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{item.source}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Expected: {new Date(item.expectedDate).toLocaleDateString("en-ZM", { day: "numeric", month: "short" })}
-                    </p>
-                  </div>
-                  <span className="text-sm font-mono font-semibold text-green-600">
-                    + {formatK(item.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
+      {/* Quick links — compressed expected / upcoming / recent */}
+      <Card>
+        <div className="grid grid-cols-3 divide-x divide-border">
+          <Link
+            href="/dashboard/analysis"
+            className="flex flex-col items-center gap-1 px-2 py-3 text-center active:bg-muted/50"
+          >
+            <TrendingUp className="h-4 w-4 text-green-600" />
+            <span className="text-[10px] font-medium text-foreground leading-tight">
+              Expected income
+            </span>
+            <span className="text-[10px] font-mono font-semibold text-green-600">
+              + {formatK(data.balance.expected)}
+            </span>
+          </Link>
+          <Link
+            href="/dashboard/reminders"
+            className="flex flex-col items-center gap-1 px-2 py-3 text-center active:bg-muted/50"
+          >
+            <Bell className="h-4 w-4 text-orange-500" />
+            <span className="text-[10px] font-medium text-foreground leading-tight">
+              Upcoming
+            </span>
+            <span className="text-[10px] font-mono font-semibold text-muted-foreground">
+              {upcomingCount > 0 ? `${upcomingCount} due` : "Clear"}
+            </span>
+          </Link>
+          <Link
+            href="/dashboard/activity"
+            className="flex flex-col items-center gap-1 px-2 py-3 text-center active:bg-muted/50"
+          >
+            <Activity className="h-4 w-4 text-blue-500" />
+            <span className="text-[10px] font-medium text-foreground leading-tight">
+              Recent transactions
+            </span>
+            <span className="text-[10px] font-mono font-semibold text-muted-foreground">
+              View all
+            </span>
+          </Link>
         </div>
-      )}
+      </Card>
 
-      {/* Upcoming Reminders */}
-      {data.upcomingReminders.length > 0 && (
-        <div>
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-            Upcoming
-          </h2>
-          <Card>
-            <div className="divide-y divide-border">
-              {data.upcomingReminders.map((r) => (
-                <div key={r._id} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{r.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Due: {new Date(r.dueDate).toLocaleDateString("en-ZM", { day: "numeric", month: "short" })}
-                    </p>
-                  </div>
-                  <span className="text-sm font-mono font-semibold text-red-500">
-                    − {formatK(r.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* Insight lives on the analysis page — dashboard stays within one viewport */}
 
-      {/* Recent Transactions */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-            Recent Transactions
-          </h2>
-          <button className="text-xs font-semibold text-accent flex items-center gap-0.5 active:opacity-70">
-            View all <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <Card>
-          {data.recentTransactions.length === 0 ? (
-            <p className="text-center text-muted-foreground text-sm py-8">
-              No transactions yet. Start by adding income or an expense.
-            </p>
-          ) : (
-            <div className="divide-y divide-border">
-              {data.recentTransactions.map((tx) => (
-                <div key={tx._id} className="flex items-center gap-3 px-4 py-3 active:bg-muted/50">
-                  <div
-                    className={`p-2 rounded-lg shrink-0 ${
-                      tx.type === "income" ? "bg-green-50" : "bg-red-50"
-                    }`}
-                  >
-                    {tx.type === "income" ? (
-                      <ArrowDownCircle className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <ArrowUpCircle className="h-4 w-4 text-red-500" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{tx.description}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {tx.categoryId?.name || tx.type} · {tx.accountId?.name || ""}
-                    </p>
-                  </div>
-                  <span
-                    className={`text-sm font-mono font-semibold shrink-0 ${
-                      tx.type === "income" ? "text-green-600" : "text-red-500"
-                    }`}
-                  >
-                    {tx.type === "income" ? "+" : "−"} {formatK(tx.amount)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
+      {/* Quick-entry modals */}
+      <QuickEntryModal
+        type="income"
+        open={incomeOpen}
+        onOpenChange={setIncomeOpen}
+        onSaved={load}
+      />
+      <QuickEntryModal
+        type="expense"
+        open={expenseOpen}
+        onOpenChange={setExpenseOpen}
+        onSaved={load}
+      />
     </div>
   );
 }

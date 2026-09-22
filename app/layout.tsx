@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Raleway } from "next/font/google";
 import "./globals.css";
-
-const raleway = Raleway({
-  subsets: ["latin"],
-  variable: "--font-raleway",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "Coffers — Personal Finance Tracker",
@@ -34,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={raleway.variable}>
+    <html lang="en">
 
       <body className="min-h-screen bg-background text-foreground font-sans">
         <TooltipProvider>{children}</TooltipProvider>

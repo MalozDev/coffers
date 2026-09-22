@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export async function POST() {
   const response = NextResponse.json(
     { success: true, data: { message: "Logged out successfully" } },
-    { status: 200 }
+    { status: 200, headers: { "Cache-Control": "no-store" } }
   );
 
   // Clear auth cookie

@@ -55,7 +55,8 @@ export default function ForecastChart({ data }: ForecastChartProps) {
   }));
 
   return (
-    <ResponsiveContainer width="100%" height={260}>
+    <div className="w-full min-w-0">
+    <ResponsiveContainer width="100%" height={260} minWidth={0}>
       <BarChart data={chartData} barGap={2}>
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
         <XAxis
@@ -93,5 +94,6 @@ export default function ForecastChart({ data }: ForecastChartProps) {
         />
       </BarChart>
     </ResponsiveContainer>
+    </div>
   );
 }

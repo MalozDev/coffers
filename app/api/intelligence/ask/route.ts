@@ -153,8 +153,15 @@ export async function POST(request: NextRequest) {
       if (budgets.length === 0) {
         answer = "You don't have any budgets set up yet. Create one to start tracking spending limits.";
       } else {
-        const budgetList = budgets
+        const limitBudgets = budgets.filter((b) => !!b.amount);
+        if (limitBudgets.length === 0) {
+          const items = budgets.reduce((s, b) => s + (b.items?.length || 0), 0);
+          answer = `You have ${budgets.length} shopping-list budget(s) with ${items} item(s) across them. No category-limit budgets yet.`;
+          data = { budgetCount: budgets.length };
+        } else {
+        const budgetList = limitBudgets
           .map((b) => {
+            if (!b.amount) return null;
             const spent = monthTransactions
               .filter(
                 (t) =>
@@ -165,9 +172,11 @@ export async function POST(request: NextRequest) {
             const pct = Math.round((spent / b.amount) * 100);
             return `"${b.name}" — K${spent.toLocaleString()} of K${b.amount.toLocaleString()} (${pct}%)`;
           })
+          .filter((s): s is string => !!s)
           .join("\n");
         answer = `Your budgets:\n${budgetList}`;
-        data = { budgetCount: budgets.length };
+        data = { budgetCount: limitBudgets.length };
+        }
       }
     }
 

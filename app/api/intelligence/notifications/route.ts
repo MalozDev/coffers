@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import connectToDatabase from "@/lib/db/connect";
 import { Transaction, Reminder, Budget, ExpectedIncome, Account } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
@@ -30,6 +31,9 @@ export async function GET(request: NextRequest) {
     weekFromNow.setDate(weekFromNow.getDate() + 7);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    // Aggregation pipelines do not cast strings — userId must be an ObjectId
+    const userIdOid = new Types.ObjectId(userId);
 
     const notifications: Notification[] = [];
 
@@ -81,10 +85,12 @@ export async function GET(request: NextRequest) {
       .lean();
 
     for (const budget of budgets) {
+      // Shopping-list budgets have no category limit to warn about
+      if (!budget.amount || !budget.categoryId) continue;
       const spent = await Transaction.aggregate([
         {
           $match: {
-            userId,
+            userId: userIdOid,
             type: "expense",
             categoryId: budget.categoryId,
             date: { $gte: monthStart, $lte: now },
@@ -118,12 +124,12 @@ export async function GET(request: NextRequest) {
     // 4. Overspending alerts
     const dayOfMonth = now.getDate();
     const monthExpenses = await Transaction.aggregate([
-      { $match: { userId, type: "expense", date: { $gte: monthStart } } },
+      { $match: { userId: userIdOid, type: "expense", date: { $gte: monthStart } } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
     const monthIncome = await Transaction.aggregate([
-      { $match: { userId, type: "income", date: { $gte: monthStart } } },
+      { $match: { userId: userIdOid, type: "income", date: { $gte: monthStart } } },
       { $group: { _id: null, total: { $sum: "$amount" } } },
     ]);
 
@@ -149,7 +155,7 @@ export async function GET(request: NextRequest) {
       const txAgg = await Transaction.aggregate([
         {
           $match: {
-            userId,
+            userId: userIdOid,
             $or: [
               { accountId: account._id, type: { $in: ["income", "expense"] } },
               { toAccountId: account._id, type: "transfer" },

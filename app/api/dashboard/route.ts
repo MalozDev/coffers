@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Types } from "mongoose";
 import connectToDatabase from "@/lib/db/connect";
-import { Transaction, Account, ExpectedIncome, Reminder, Goal } from "@/lib/models";
+import { Transaction, Account, ExpectedIncome, Reminder, Goal, User } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
 
 export async function GET(request: NextRequest) {
@@ -16,8 +17,12 @@ export async function GET(request: NextRequest) {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Aggregation pipelines do not cast strings — userId must be an ObjectId
+    const userIdOid = new Types.ObjectId(userId);
+
     // Run all queries in parallel
     const [
+      user,
       accounts,
       todayAgg,
       monthAgg,
@@ -27,11 +32,13 @@ export async function GET(request: NextRequest) {
       expectedIncome,
       activeGoals,
     ] = await Promise.all([
+      // Current user (for the dashboard greeting)
+      User.findOne({ _id: userId }).select("name email").lean(),
       // Accounts with balances
       Account.find({ userId }).lean(),
       // Today's income/expenses
       Transaction.aggregate([
-        { $match: { userId, date: { $gte: todayStart } } },
+        { $match: { userId: userIdOid, date: { $gte: todayStart } } },
         {
           $group: {
             _id: "$type",
@@ -41,7 +48,7 @@ export async function GET(request: NextRequest) {
       ]),
       // This month's income/expenses
       Transaction.aggregate([
-        { $match: { userId, date: { $gte: monthStart } } },
+        { $match: { userId: userIdOid, date: { $gte: monthStart } } },
         {
           $group: {
             _id: "$type",
@@ -51,7 +58,7 @@ export async function GET(request: NextRequest) {
       ]),
       // All-time totals
       Transaction.aggregate([
-        { $match: { userId } },
+        { $match: { userId: userIdOid } },
         {
           $group: {
             _id: "$type",
@@ -95,7 +102,7 @@ export async function GET(request: NextRequest) {
         const txAgg = await Transaction.aggregate([
           {
             $match: {
-              userId,
+              userId: userIdOid,
               $or: [
                 { accountId: account._id, type: { $in: ["income", "expense"] } },
                 { toAccountId: account._id, type: "transfer" },
@@ -153,6 +160,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
+        user: user ? { name: user.name, email: user.email } : null,
         balance: {
           total: totalBalance,
           accounts: accountBalances,

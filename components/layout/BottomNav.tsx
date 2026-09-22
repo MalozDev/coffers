@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { Home, ArrowDownCircle, ArrowUpCircle, Activity, BarChart3 } from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Home", icon: Home },
-  { href: "/income", label: "Income", icon: ArrowDownCircle },
-  { href: "/activity", label: "Activity", icon: Activity },
-  { href: "/expenses", label: "Expenses", icon: ArrowUpCircle },
-  { href: "/analysis", label: "Analysis", icon: BarChart3 },
+  { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/dashboard/income", label: "Income", icon: ArrowDownCircle },
+  { href: "/dashboard/activity", label: "Activity", icon: Activity },
+  { href: "/dashboard/expenses", label: "Expenses", icon: ArrowUpCircle },
+  { href: "/dashboard/analysis", label: "Analysis", icon: BarChart3 },
 ];
 
 export default function BottomNav() {

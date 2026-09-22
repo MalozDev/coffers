@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +19,7 @@ import {
 import {
   TrendingUp, TrendingDown, Minus, BarChart3, Brain,
   Target, DollarSign, Bell, Send, Sparkles, AlertTriangle,
-  Clock, Zap, Calendar,
+  Clock, Zap, Calendar, PiggyBank,
 } from "lucide-react";
 
 function formatK(n: number) { return `K${Math.abs(n).toLocaleString()}`; }
@@ -35,26 +36,26 @@ async function fetchJson(url: string, options?: RequestInit) {
 // ─── Main Analysis Page ────────────────────────────────────
 export default function AnalysisPage() {
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <div>
         <h1 className="text-xl font-bold text-foreground">Analysis</h1>
         <p className="text-muted-foreground text-sm mt-0.5">Financial intelligence & insights</p>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-10">
-          <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-          <TabsTrigger value="patterns" className="text-xs">Patterns</TabsTrigger>
-          <TabsTrigger value="forecast" className="text-xs">Forecast</TabsTrigger>
-          <TabsTrigger value="simulate" className="text-xs">Simulate</TabsTrigger>
-          <TabsTrigger value="ask" className="text-xs">Ask</TabsTrigger>
+        <TabsList className="hide-scrollbar flex w-full justify-start gap-1 overflow-x-auto rounded-xl p-1 h-11">
+          <TabsTrigger value="overview" className="h-9 min-w-[92px] flex-none text-xs">Overview</TabsTrigger>
+          <TabsTrigger value="patterns" className="h-9 min-w-[92px] flex-none text-xs">Patterns</TabsTrigger>
+          <TabsTrigger value="forecast" className="h-9 min-w-[92px] flex-none text-xs">Forecast</TabsTrigger>
+          <TabsTrigger value="simulate" className="h-9 min-w-[92px] flex-none text-xs">Simulate</TabsTrigger>
+          <TabsTrigger value="ask" className="h-9 min-w-[92px] flex-none text-xs">Ask</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview"><OverviewTab /></TabsContent>
-        <TabsContent value="patterns"><PatternsTab /></TabsContent>
-        <TabsContent value="forecast"><ForecastTab /></TabsContent>
-        <TabsContent value="simulate"><SimulateTab /></TabsContent>
-        <TabsContent value="ask"><AskTab /></TabsContent>
+        <TabsContent value="overview" className="min-w-0"><OverviewTab /></TabsContent>
+        <TabsContent value="patterns" className="min-w-0"><PatternsTab /></TabsContent>
+        <TabsContent value="forecast" className="min-w-0"><ForecastTab /></TabsContent>
+        <TabsContent value="simulate" className="min-w-0"><SimulateTab /></TabsContent>
+        <TabsContent value="ask" className="min-w-0"><AskTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -85,63 +86,115 @@ function OverviewTab() {
   return (
     <div className="space-y-4 pt-4">
       {/* Period & Date */}
-      <div className="flex gap-2">
-        {(["daily", "weekly", "monthly"] as const).map((p) => (
-          <Button key={p} variant={period === p ? "default" : "secondary"} size="sm"
-            onClick={() => setPeriod(p)} className="flex-1 h-9 text-xs capitalize">{p}</Button>
-        ))}
-      </div>
-      <div className="space-y-1.5">
-        <label className="text-xs text-muted-foreground">Reference Date</label>
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 text-sm" />
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="grid grid-cols-3 gap-2 sm:flex-1">
+          {(["daily", "weekly", "monthly"] as const).map((p) => (
+            <Button key={p} variant={period === p ? "default" : "secondary"} size="sm"
+              onClick={() => setPeriod(p)} className="h-9 text-xs capitalize">{p}</Button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1.5 sm:w-44">
+          <label htmlFor="analysis-date" className="text-xs text-muted-foreground">Reference Date</label>
+          <Input id="analysis-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" />
+        </div>
       </div>
 
-      {/* Income / Expenses / Savings Summary */}
+      {/* Income / Expenses / Savings Summary — compact 3-up on all screens */}
       <Card>
-        <CardContent className="p-4 grid grid-cols-3 gap-3 text-center">
-          <div>
-            <p className="text-[11px] text-muted-foreground uppercase">Income</p>
-            <p className="text-lg font-mono font-bold text-green-600">+{formatK(data.current.income)}</p>
-            {data.changes?.income !== undefined && (
-              <span className={`text-[10px] font-semibold ${data.changes.income > 0 ? "text-red-500" : "text-green-500"}`}>
-                {data.changes.income > 0 ? "+" : ""}{Math.round(data.changes.income)}%
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground uppercase">Expenses</p>
-            <p className="text-lg font-mono font-bold text-red-500">−{formatK(data.current.expenses)}</p>
-            {data.changes?.expenses !== undefined && (
-              <span className={`text-[10px] font-semibold ${data.changes.expenses > 0 ? "text-red-500" : "text-green-500"}`}>
-                {data.changes.expenses > 0 ? "+" : ""}{Math.round(data.changes.expenses)}%
-              </span>
-            )}
-          </div>
-          <div>
-            <p className="text-[11px] text-muted-foreground uppercase">Saved</p>
-            <p className={`text-lg font-mono font-bold ${data.current.savings >= 0 ? "text-green-600" : "text-red-500"}`}>
-              {data.current.savings >= 0 ? "+" : "−"}{formatK(data.current.savings)}
-            </p>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wide">Income</p>
+              <p className="text-sm sm:text-lg font-mono font-bold text-green-600 mt-0.5 truncate">+{formatK(data.current.income)}</p>
+              {data.changes?.income !== undefined && (
+                <span className={`block text-[10px] font-semibold ${data.changes.income > 0 ? "text-red-500" : "text-green-500"}`}>
+                  {data.changes.income > 0 ? "+" : ""}{Math.round(data.changes.income)}%
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 border-x border-border/60">
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wide">Expenses</p>
+              <p className="text-sm sm:text-lg font-mono font-bold text-red-500 mt-0.5 truncate">−{formatK(data.current.expenses)}</p>
+              {data.changes?.expenses !== undefined && (
+                <span className={`block text-[10px] font-semibold ${data.changes.expenses > 0 ? "text-red-500" : "text-green-500"}`}>
+                  {data.changes.expenses > 0 ? "+" : ""}{Math.round(data.changes.expenses)}%
+                </span>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wide">Saved</p>
+              <p className={`text-sm sm:text-lg font-mono font-bold mt-0.5 truncate ${data.current.savings >= 0 ? "text-green-600" : "text-red-500"}`}>
+                {data.current.savings >= 0 ? "+" : "−"}{formatK(data.current.savings)}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Savings Rate Gauge */}
-      <Card>
-        <CardContent className="p-4 flex justify-center">
-          <SavingsRateGauge rate={data.current.savingsRate} />
-        </CardContent>
-      </Card>
-
-      {/* Category Breakdown Chart */}
-      {data.categoryBreakdown?.length > 0 && (
+      {/* All-time income vs expenses (since account creation) + savings */}
+      {data.allTime && (
         <Card>
           <CardContent className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Spending by Category</h3>
-            <SpendingByCategory data={data.categoryBreakdown} />
+            <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wide mb-2">
+              All-time · since you joined
+            </p>
+            <div className="grid grid-cols-2 divide-x divide-border text-center">
+              <div className="min-w-0">
+                <p className="text-sm sm:text-lg font-mono font-bold text-green-600 truncate">
+                  +{formatK(data.allTime.income)}
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
+                  Income
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm sm:text-lg font-mono font-bold text-red-500 truncate">
+                  −{formatK(data.allTime.expenses)}
+                </p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide mt-0.5">
+                  Expenses
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/dashboard/savings"
+              className="mt-3 flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2 active:opacity-70"
+            >
+              <span className="text-xs font-medium text-green-700 flex items-center gap-1.5">
+                <PiggyBank className="h-3.5 w-3.5" /> Saved in savings accounts
+              </span>
+              <span className="text-sm font-mono font-bold text-green-700">
+                {formatK(data.savingsTotal || 0)}
+              </span>
+            </Link>
           </CardContent>
         </Card>
       )}
+
+      {/* Charts — stacked on mobile, side by side on desktop */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Savings Rate Gauge */}
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-1">Savings Rate</h3>
+            <div className="flex justify-center py-2">
+              <SavingsRateGauge rate={data.current.savingsRate} label="Income saved" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Category Breakdown Chart */}
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-3">Spending by Category</h3>
+            {data.categoryBreakdown?.length > 0 ? (
+              <SpendingByCategory data={data.categoryBreakdown} />
+            ) : (
+              <p className="py-12 text-center text-sm text-muted-foreground">No spending data for this period.</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Insights */}
       {data.insights?.length > 0 && (
@@ -196,7 +249,7 @@ function PatternsTab() {
 
       {/* Spending Trend Chart */}
       {data.spendingTrend?.monthlyData?.length > 0 && (
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
               {data.spendingTrend.direction === "increasing" ? <TrendingUp className="h-4 w-4 text-red-500" /> :
@@ -217,7 +270,7 @@ function PatternsTab() {
 
       {/* Recurring Expenses */}
       {data.recurringExpenses?.length > 0 && (
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3"><Clock className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">Recurring Expenses</h3></div>
             <div className="space-y-2">
@@ -240,7 +293,7 @@ function PatternsTab() {
 
       {/* Category Changes */}
       {data.categoryChanges?.length > 0 && (
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="p-4">
             <h3 className="text-sm font-semibold mb-3">Category Changes (vs last month)</h3>
             <div className="space-y-2">
@@ -315,46 +368,66 @@ function ForecastTab() {
 
   return (
     <div className="space-y-4 pt-4">
-      {/* Day Counter */}
-      <Card className="bg-gradient-to-br from-background to-accent/10">
-        <CardContent className="p-4 text-center">
-          <p className="text-3xl font-mono font-bold">{data.current.daysRemaining}</p>
-          <p className="text-sm text-muted-foreground">days left this month</p>
-          <p className="text-xs text-muted-foreground mt-1">Day {data.current.dayOfMonth} of {data.current.daysInMonth}</p>
-        </CardContent>
-      </Card>
+      {/* Day counter + daily averages */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card className="min-w-0 bg-gradient-to-br from-background to-accent/10">
+          <CardContent className="p-4 text-center">
+            <p className="text-3xl font-mono font-bold">{data.current.daysRemaining}</p>
+            <p className="text-sm text-muted-foreground">days left this month</p>
+            <p className="text-xs text-muted-foreground mt-1">Day {data.current.dayOfMonth} of {data.current.daysInMonth}</p>
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-2">Daily Averages</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-lg bg-muted/50 text-center">
+                <p className="text-xs text-muted-foreground">Spending/day</p>
+                <p className="text-lg font-mono font-semibold">{formatK(data.current.dailySpendRate)}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50 text-center">
+                <p className="text-xs text-muted-foreground">Income/day</p>
+                <p className="text-lg font-mono font-semibold">{formatK(data.current.dailyIncomeRate)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Income vs Expenses Projection */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="text-sm font-semibold mb-3">Monthly Comparison</h3>
-          <IncomeVsExpenses
-            data={[
-              {
-                month: "Current",
-                income: data.current.income,
-                expenses: data.current.expenses,
-              },
-              {
-                month: "Projected",
-                income: data.projected.income,
-                expenses: data.projected.expenses,
-              },
-            ]}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Savings Rate Gauge */}
-      <Card>
-        <CardContent className="p-4 flex justify-center">
-          <SavingsRateGauge rate={data.projected.savingsRate} label="Projected Savings Rate" />
-        </CardContent>
-      </Card>
+      {/* Monthly comparison + projected savings rate */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-3">Monthly Comparison</h3>
+            <IncomeVsExpenses
+              data={[
+                {
+                  month: "Current",
+                  income: data.current.income,
+                  expenses: data.current.expenses,
+                },
+                {
+                  month: "Projected",
+                  income: data.projected.income,
+                  expenses: data.projected.expenses,
+                },
+              ]}
+            />
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="text-sm font-semibold mb-3">Projected Savings Rate</h3>
+            <div className="flex justify-center py-2">
+              <SavingsRateGauge rate={data.projected.savingsRate} label="If this pace continues" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Category Projections Chart */}
       {data.categoryProjections?.length > 0 && (
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="p-4">
             <h3 className="text-sm font-semibold mb-3">Category Projections</h3>
             <ForecastChart
@@ -370,30 +443,13 @@ function ForecastTab() {
 
       {/* Weekly Breakdown */}
       {data.weeklyBreakdown?.length > 0 && (
-        <Card>
+        <Card className="min-w-0">
           <CardContent className="p-4">
             <h3 className="text-sm font-semibold mb-3">Weekly Breakdown</h3>
             <WeeklyBreakdown data={data.weeklyBreakdown} />
           </CardContent>
         </Card>
       )}
-
-      {/* Daily Rates */}
-      <Card>
-        <CardContent className="p-4">
-          <h3 className="text-sm font-semibold mb-2">Daily Averages</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-lg bg-muted/50 text-center">
-              <p className="text-xs text-muted-foreground">Spending/day</p>
-              <p className="text-lg font-mono font-semibold">{formatK(data.current.dailySpendRate)}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-muted/50 text-center">
-              <p className="text-xs text-muted-foreground">Income/day</p>
-              <p className="text-lg font-mono font-semibold">{formatK(data.current.dailyIncomeRate)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Insights */}
       {data.insights?.length > 0 && (
@@ -449,7 +505,7 @@ function SimulateTab() {
       {result && (
         <>
           {/* Affordability Badge */}
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-4 text-center">
               <Badge variant={result.affordabilityScore.level === "low" ? "default" : "destructive"} className="text-sm mb-2">
                 {result.affordabilityScore.label}
@@ -460,7 +516,7 @@ function SimulateTab() {
           </Card>
 
           {/* Before vs After Chart */}
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-4">
               <h3 className="text-sm font-semibold mb-3">Before vs After</h3>
               <IncomeVsExpenses
