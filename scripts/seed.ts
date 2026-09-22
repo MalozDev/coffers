@@ -28,6 +28,7 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, unique: true, lowercase: true },
   phoneNumber: String,
   passwordHash: { type: String, select: false },
+  isAdmin: { type: Boolean, default: false },
   defaultCurrency: { type: String, default: "ZMK" },
 }, { timestamps: true });
 
@@ -125,17 +126,18 @@ async function seed() {
     ExpectedIncome.deleteMany({}),
   ]);
 
-  // Create test user
-  console.log("👤 Creating test user...");
-  const passwordHash = await bcrypt.hash("password123", 12);
+  // Create the sole seeded admin user
+  console.log("👤 Creating admin user...");
+  const passwordHash = await bcrypt.hash("<stephDev/>@1028", 12);
   const user = await User.create({
-    name: "Mwila Banda",
-    email: "test@coffers.com",
+    name: "Coffers Admin",
+    email: "malozdev@coffers.com",
     phoneNumber: "+260 97 123 4567",
     passwordHash,
+    isAdmin: true,
     defaultCurrency: "ZMK",
   });
-  console.log(`   ✅ User: ${user.email} (password: password123)`);
+  console.log(`   ✅ Admin: ${user.email}`);
 
   // Create accounts
   console.log("🏦 Creating accounts...");
@@ -239,9 +241,9 @@ async function seed() {
   console.log("   ✅ 2 expected income items created");
 
   console.log("\n🎉 Seed complete!");
-  console.log("\n📋 Test credentials:");
-  console.log("   Email: test@coffers.com");
-  console.log("   Password: password123");
+  console.log("\n📋 Admin credentials:");
+  console.log("   Email: malozdev@coffers.com");
+  console.log("   Password: <provided admin password>");
   console.log("\n📊 Summary:");
   console.log("   1 user | 3 accounts | 9 categories");
   console.log("   16 transactions | 3 budgets | 3 goals");

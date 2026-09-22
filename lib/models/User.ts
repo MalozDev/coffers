@@ -6,6 +6,7 @@ export interface IUser extends Document {
   phoneNumber: string;
   profileImage?: string;
   passwordHash: string;
+  isAdmin: boolean;
   defaultCurrency: "ZMK";
   createdAt: Date;
   updatedAt: Date;
@@ -40,6 +41,11 @@ const UserSchema = new Schema<IUser>(
       type: String,
       required: [true, "Password is required"],
       select: false, // Never return password by default
+    },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     defaultCurrency: {
       type: String,

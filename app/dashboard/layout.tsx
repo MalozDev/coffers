@@ -11,6 +11,7 @@ export interface DashboardProfile {
   name: string;
   email: string;
   profileImage?: string | null;
+  isAdmin?: boolean;
 }
 
 export default function DashboardLayout({

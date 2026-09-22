@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Menu, Bell } from "lucide-react";
@@ -12,6 +14,17 @@ interface TopBarProps {
 }
 
 export default function TopBar({ onMenuClick, profile }: TopBarProps) {
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/notifications")
+      .then((response) => response.json())
+      .then((result) => {
+        if (result.success) setUnreadCount(result.data.unreadCount);
+      })
+      .catch(() => undefined);
+  }, []);
+
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-border">
       <div className="relative flex items-center justify-between h-14 px-4 lg:h-16 lg:px-8">
@@ -50,11 +63,11 @@ export default function TopBar({ onMenuClick, profile }: TopBarProps) {
 
         {/* Right — notifications + avatar */}
         <div className="flex items-center gap-2 lg:static">
-          <Button variant="ghost" size="icon" className="relative h-10 w-10">
+          <Link href="/dashboard/notifications" className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted" aria-label={unreadCount ? `${unreadCount} unread notifications` : "Notifications"}>
             <Bell className="h-5 w-5" />
-            <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive" />
+            {unreadCount > 0 && <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">{unreadCount > 99 ? "99+" : unreadCount}</span>}
             <span className="sr-only">Notifications</span>
-          </Button>
+          </Link>
 
           <Avatar className="h-8 w-8">
             {profile?.profileImage ? (

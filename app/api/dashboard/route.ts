@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       allTransactions,
     ] = await Promise.all([
       // Current user (for the dashboard greeting)
-      User.findOne({ _id: userId }).select("name email profileImage").lean(),
+      User.findOne({ _id: userId }).select("name email profileImage isAdmin").lean(),
       // Accounts with balances
       Account.find({ userId }).lean(),
       // Today's income/expenses
@@ -142,7 +142,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        user: user ? { name: user.name, email: user.email, profileImage: user.profileImage || null } : null,
+        user: user ? { name: user.name, email: user.email, profileImage: user.profileImage || null, isAdmin: user.isAdmin } : null,
         balance: {
           total: totalBalance,
           accounts: accountBalances,

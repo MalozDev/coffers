@@ -13,6 +13,8 @@ const protectedRoutes = [
   "/dashboard/analysis",
   "/dashboard/categories",
   "/dashboard/settings",
+  "/dashboard/notifications",
+  "/admin",
 ];
 
 export function middleware(request: NextRequest) {

@@ -12,3 +12,4 @@ export {
   default as ExpectedIncome,
   type IExpectedIncome,
 } from "./ExpectedIncome";
+export { default as Notification, type INotification } from "./Notification";

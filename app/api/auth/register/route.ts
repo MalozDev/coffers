@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import connectToDatabase from "@/lib/db/connect";
-import { User, Account, Category } from "@/lib/models";
+import { User, Account, Category, Notification } from "@/lib/models";
 import { registerSchema } from "@/lib/validation/auth";
 
 const DEFAULT_EXPENSE_CATEGORIES = [
@@ -95,6 +95,13 @@ export async function POST(request: NextRequest) {
       isDefault: true,
     }));
     await Category.insertMany([...expenseCategories, ...incomeCategories]);
+
+    await Notification.create({
+      userId: user._id,
+      type: "welcome",
+      title: "Welcome to Coffers",
+      message: "Your account is ready. Add your first income or expense to start understanding your money.",
+    });
 
     // Create session token
     const token = Buffer.from(
