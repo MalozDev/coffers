@@ -99,6 +99,7 @@ export default function ExpensesPage() {
         setNote("");
         setSplitPayment(false);
         setPaymentAmounts({});
+        window.dispatchEvent(new Event("coffers:data-updated"));
         const txs = await fetch("/api/transactions?type=expense&limit=20").then((r) => r.json());
         if (txs.success) setTransactions(txs.data.transactions);
       } else {

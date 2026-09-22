@@ -226,6 +226,7 @@ export default function IncomePage() {
         setDescription("");
         setNote("");
         showToast("success", "Income saved successfully.");
+        window.dispatchEvent(new Event("coffers:data-updated"));
         // Refresh list
         const txs = await fetch("/api/transactions?type=income&limit=100").then((r) => r.json());
         if (txs.success) setTransactions(txs.data.transactions);
@@ -286,6 +287,7 @@ export default function IncomePage() {
       setShowTransferForm(false);
       setError(null);
       showToast("success", "Money moved between accounts.");
+      window.dispatchEvent(new Event("coffers:data-updated"));
     } catch (transferError) {
       console.error(transferError);
       setError("Network error. Please check your connection and try again.");

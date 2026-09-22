@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
       const savingsStr = new Set(savingsOids.map(String));
       for (const a of savingsAccounts) savingsTotal += a.openingBalance;
       const savingsTxs = await Transaction.find({
+        userId: userIdOid,
         $or: [{ accountId: { $in: savingsOids } }, { toAccountId: { $in: savingsOids } }],
       }).lean();
       for (const t of savingsTxs) {
@@ -227,6 +228,8 @@ export async function GET(request: NextRequest) {
     const totalExpenses = categoryBreakdown.reduce((sum, c) => sum + c.total, 0);
     const categoryWithPercent = categoryBreakdown.map((c) => ({
       ...c,
+      name: c.name || "Other",
+      color: c.color || "#94a3b8",
       percentage: totalExpenses > 0 ? (c.total / totalExpenses) * 100 : 0,
     }));
 
@@ -276,7 +279,7 @@ export async function GET(request: NextRequest) {
         allTime,
         savingsTotal,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Analysis error:", error);
     return NextResponse.json(

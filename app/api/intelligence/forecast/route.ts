@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const monthTransactions = await Transaction.find({
       userId,
       date: { $gte: monthStart, $lte: now },
-    }).lean();
+    }).populate("categoryId", "name color icon").lean();
 
     const income = monthTransactions
       .filter((t) => t.type === "income")
@@ -52,12 +52,13 @@ export async function GET(request: NextRequest) {
     monthTransactions
       .filter((t) => t.type === "expense" && t.categoryId)
       .forEach((t) => {
-        const catId = t.categoryId?.toString() || "unknown";
+        const category = t.categoryId as any;
+        const catId = String(category?._id || category || "unknown");
         if (!categorySpending[catId]) {
           categorySpending[catId] = { total: 0, name: "", count: 0 };
         }
         categorySpending[catId].total += t.amount;
-        categorySpending[catId].name = (t as any).categoryId?.name || "Unknown";
+          categorySpending[catId].name = category?.name || "Other";
         categorySpending[catId].count++;
       });
 
@@ -183,7 +184,7 @@ export async function GET(request: NextRequest) {
         weeklyBreakdown,
         insights,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Forecast error:", error);
     return NextResponse.json(

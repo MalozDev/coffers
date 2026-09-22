@@ -151,6 +151,7 @@ export default function SavingsPage() {
       setSaveAmount("");
       setShowSaveForm(false);
       showToast("success", "Money added to your saving.");
+      window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
       setActionError("Could not add to savings. Please try again.");
@@ -183,6 +184,7 @@ export default function SavingsPage() {
       setCreateMonthly("");
       setShowCreateForm(false);
       showToast("success", "Saving created successfully.");
+      window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
       setActionError("Could not create saving. Please try again.");
@@ -213,6 +215,7 @@ export default function SavingsPage() {
       }
       resetSelectedActions();
       showToast("success", "Money returned to your account.");
+      window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
       setActionError("Could not return money. Please try again.");
@@ -244,6 +247,7 @@ export default function SavingsPage() {
       setSelectedGoalId(null);
       resetSelectedActions();
       showToast("success", "Saving cancelled and funds returned.");
+      window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
       setActionError("Could not cancel this saving. Please try again.");

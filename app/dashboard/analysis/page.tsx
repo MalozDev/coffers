@@ -15,6 +15,7 @@ import {
   SavingsRateGauge,
   ForecastChart,
   WeeklyBreakdown,
+  IncomeExpensePie,
 } from "@/components/charts";
 import {
   TrendingUp, TrendingDown, Minus, BarChart3, Brain,
@@ -25,7 +26,7 @@ import {
 function formatK(n: number) { return `K${Math.abs(n).toLocaleString()}`; }
 
 async function fetchJson(url: string, options?: RequestInit) {
-  const response = await fetch(url, options);
+  const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`, { cache: "no-store", ...options });
   const result = await response.json();
   if (!response.ok || !result.success) {
     throw new Error(result.error || "Request failed");
@@ -71,13 +72,25 @@ function OverviewTab() {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(false);
-    fetchJson(`/api/analysis?period=${period}&date=${date}`)
-      .then((result) => { if (active) setData(result); })
-      .catch(() => { if (active) { setData(null); setError(true); } })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const refresh = () => {
+      setLoading(true);
+      setError(false);
+      fetchJson(`/api/analysis?period=${period}&date=${date}`)
+        .then((result) => { if (active) setData(result); })
+        .catch(() => { if (active) { setData(null); setError(true); } })
+        .finally(() => { if (active) setLoading(false); });
+    };
+    refresh();
+    const handleRefresh = () => refresh();
+    window.addEventListener("focus", handleRefresh);
+    window.addEventListener("coffers:data-updated", handleRefresh);
+    document.addEventListener("visibilitychange", handleRefresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleRefresh);
+      window.removeEventListener("coffers:data-updated", handleRefresh);
+      document.removeEventListener("visibilitychange", handleRefresh);
+    };
   }, [period, date]);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3, 4].map((i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}</div>;
@@ -195,6 +208,14 @@ function OverviewTab() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="min-w-0">
+        <CardContent className="p-4">
+          <h3 className="mb-1 text-sm font-semibold">Income vs expenses</h3>
+          <p className="mb-2 text-xs text-muted-foreground">A quick view of where money went in this period.</p>
+          <IncomeExpensePie income={data.current.income} expenses={data.current.expenses} />
+        </CardContent>
+      </Card>
 
       {/* Insights */}
       {data.insights?.length > 0 && (
