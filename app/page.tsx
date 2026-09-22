@@ -69,17 +69,17 @@ export default function HomePage() {
       </div>
 
       {/* Feature slider */}
-      <div className="border-y bg-white py-3 overflow-hidden" style={{ borderColor: 'rgba(0,0,0,0.1)' }}>
+      <div className="border-y bg-white py-3 overflow-hidden" style={{ borderColor: 'rgba(0, 3, 38, 0.1)' }}>
         <div className="flex animate-slide-left w-max">
           {[...features, ...features, ...features].map((f, i) => (
             <div
               key={i}
               className="flex items-center gap-2 px-5 shrink-0"
             >
-              <div className="p-1.5 rounded-lg" style={{ background: 'rgba(0,0,0,0.05)' }}>
-                <f.icon className="h-3.5 w-3.5" style={{ color: 'rgba(0,0,0,0.6)' }} />
+              <div className="p-1.5 rounded-lg" style={{ background: 'rgba(255, 255, 255, 0.05)' }}>
+                <f.icon className="h-3.5 w-3.5" style={{ color: 'rgba(38, 0, 65, 0.6)' }} />
               </div>
-              <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'rgba(0,0,0,0.4)' }}>
+              <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'rgb(0, 0, 0)' }}>
                 {f.label}
               </span>
             </div>
@@ -100,10 +100,10 @@ export default function HomePage() {
           </div>
           <span className="font-bold text-brand-secondary text-xs">Coffers</span>
         </div>
-        <p className="text-[10px] text-brand-neutral/30">
+        <p className="text-[10px] text-brand-neutral">
           &copy; 2026 Coffers. Built with care for your financial wellbeing.
         </p>
-        <p className="text-[10px] text-brand-neutral/20 mt-0.5">
+        <p className="text-[10px] text-brand-neutral mt-0.5">
           Default currency: <span className="font-semibold">ZMK (Kwacha)</span>
         </p>
       </footer>

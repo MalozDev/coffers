@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import BottomNav from "@/components/layout/BottomNav";
+import PwaInstallPrompt from "@/components/layout/PwaInstallPrompt";
 
 export interface DashboardProfile {
   name: string;
@@ -75,6 +76,7 @@ export default function DashboardLayout({
 
       {/* Mobile bottom nav — primary navigation */}
       <BottomNav />
+      <PwaInstallPrompt />
     </div>
   );
 }
