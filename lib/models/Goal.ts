@@ -7,7 +7,8 @@ export interface IGoal extends Document {
   currentAmount: number;
   targetDate: Date;
   monthlyContribution: number;
-  status: "active" | "completed" | "paused";
+  fundingAccountId?: mongoose.Types.ObjectId;
+  status: "active" | "completed" | "paused" | "cancelled";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -45,9 +46,13 @@ const GoalSchema = new Schema<IGoal>(
       default: 0,
       min: [0, "Monthly contribution cannot be negative"],
     },
+    fundingAccountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+    },
     status: {
       type: String,
-      enum: ["active", "completed", "paused"],
+      enum: ["active", "completed", "paused", "cancelled"],
       default: "active",
     },
   },

@@ -34,7 +34,12 @@ export async function GET(request: NextRequest) {
 
     if (ids.length > 0) {
       txs = await Transaction.find({
-        $or: [{ accountId: { $in: ids } }, { toAccountId: { $in: ids } }],
+        userId,
+        $or: [
+          { accountId: { $in: ids } },
+          { toAccountId: { $in: ids } },
+          { "payments.accountId": { $in: ids } },
+        ],
       })
         .sort({ date: 1 })
         .lean();
@@ -47,7 +52,10 @@ export async function GET(request: NextRequest) {
         const sameAccount = t.accountId && String(t.accountId) === String(id);
         const toAccount = t.toAccountId && String(t.toAccountId) === String(id);
         if (t.type === "income" && sameAccount) net += t.amount;
-        else if (t.type === "expense" && sameAccount) net -= t.amount;
+        else if (t.type === "expense") {
+          const payment = (t as any).payments?.find((item: any) => String(item.accountId) === String(id));
+          net -= payment?.amount ?? (sameAccount ? t.amount : 0);
+        }
         else if (t.type === "transfer" && sameAccount) net -= t.amount;
         else if (t.type === "transfer" && toAccount) net += t.amount;
       }
@@ -72,7 +80,10 @@ export async function GET(request: NextRequest) {
         const sameAccount = t.accountId && String(t.accountId) === String(a._id);
         const toAccount = t.toAccountId && String(t.toAccountId) === String(a._id);
         if (t.type === "income" && sameAccount) monthNet += t.amount;
-        else if (t.type === "expense" && sameAccount) monthNet -= t.amount;
+        else if (t.type === "expense") {
+          const payment = (t as any).payments?.find((item: any) => String(item.accountId) === String(a._id));
+          monthNet -= payment?.amount ?? (sameAccount ? t.amount : 0);
+        }
         else if (t.type === "transfer" && sameAccount) monthNet -= t.amount;
         else if (t.type === "transfer" && toAccount) monthNet += t.amount;
       }
@@ -98,7 +109,10 @@ export async function GET(request: NextRequest) {
           const sameAccount = t.accountId && String(t.accountId) === String(a._id);
           const toAccount = t.toAccountId && String(t.toAccountId) === String(a._id);
           if (t.type === "income" && sameAccount) balance += t.amount;
-          else if (t.type === "expense" && sameAccount) balance -= t.amount;
+          else if (t.type === "expense") {
+            const payment = (t as any).payments?.find((item: any) => String(item.accountId) === String(a._id));
+            balance -= payment?.amount ?? (sameAccount ? t.amount : 0);
+          }
           else if (t.type === "transfer" && sameAccount) balance -= t.amount;
           else if (t.type === "transfer" && toAccount) balance += t.amount;
         }

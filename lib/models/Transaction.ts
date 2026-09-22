@@ -7,6 +7,10 @@ export interface ITransaction extends Document {
   categoryId?: mongoose.Types.ObjectId;
   accountId: mongoose.Types.ObjectId;
   toAccountId?: mongoose.Types.ObjectId;
+  payments?: Array<{
+    accountId: mongoose.Types.ObjectId;
+    amount: number;
+  }>;
   description: string;
   note?: string;
   date: Date;
@@ -50,6 +54,10 @@ const TransactionSchema = new Schema<ITransaction>(
         return this.type === "transfer";
       },
     },
+    payments: [{
+      accountId: { type: Schema.Types.ObjectId, ref: "Account", required: true },
+      amount: { type: Number, required: true, min: 0.01 },
+    }],
     description: {
       type: String,
       required: [true, "Description is required"],

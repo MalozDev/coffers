@@ -28,7 +28,7 @@ export default function HomePage() {
         {/* Logo */}
         <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card border border-border mb-4">
           <Image
-            src="/Money-Logo-Graphics-1-1.jpg"
+            src="/coffers-logo.png"
             alt="Coffers Logo"
             fill
             className="object-cover"
@@ -92,7 +92,7 @@ export default function HomePage() {
         <div className="flex items-center justify-center gap-2 mb-1.5">
           <div className="relative w-5 h-5 rounded-md overflow-hidden">
             <Image
-              src="/Money-Logo-Graphics-1-1.jpg"
+              src="/coffers-logo.png"
               alt="Coffers"
               fill
               className="object-cover"

@@ -11,20 +11,20 @@ import {
   Activity,
   PiggyBank,
   Coins,
-  Target,
   Bell,
   BarChart3,
   Tag,
   Settings,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import type { DashboardProfile } from "@/app/dashboard/layout";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -33,7 +33,6 @@ const navItems = [
   { href: "/dashboard/activity", label: "Activity", icon: Activity },
   { href: "/dashboard/budgets", label: "Budgets", icon: PiggyBank },
   { href: "/dashboard/savings", label: "Savings", icon: Coins },
-  { href: "/dashboard/goals", label: "Goals", icon: Target },
   { href: "/dashboard/reminders", label: "Reminders", icon: Bell },
   { href: "/dashboard/analysis", label: "Analysis", icon: BarChart3 },
 ];
@@ -46,13 +45,14 @@ const secondaryItems = [
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  profile?: DashboardProfile | null;
 }
 
 interface SidebarContentProps {
   onClose?: () => void;
 }
 
-function SidebarContent({ onClose }: SidebarContentProps) {
+function SidebarContent({ onClose, profile }: SidebarContentProps & { profile?: DashboardProfile | null }) {
   const pathname = usePathname();
 
   return (
@@ -62,7 +62,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 rounded-xl overflow-hidden shadow-md ring-1 ring-white/10">
             <Image
-              src="/Money-Logo-Graphics-1-1.jpg"
+              src="/coffers-logo.png"
               alt="Coffers"
               fill
               className="object-cover"
@@ -79,7 +79,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         </div>
       </div>
 
-      <Separator className="bg-sidebar-border" />
+      <Separator className="" />
 
       {/* Main nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
@@ -104,7 +104,7 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         })}
       </nav>
 
-      <Separator className="bg-sidebar-border" />
+      <Separator className="" />
 
       {/* Secondary nav */}
       <nav className="px-3 py-3 space-y-0.5">
@@ -129,22 +129,26 @@ function SidebarContent({ onClose }: SidebarContentProps) {
         })}
       </nav>
 
-      <Separator className="bg-sidebar-border" />
+      <Separator className="" />
 
       {/* User */}
       <div className="px-4 py-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-sm font-semibold">
-              CU
-            </AvatarFallback>
+            {profile?.profileImage ? (
+              <AvatarImage src={profile.profileImage} alt={profile.name} />
+            ) : (
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-accent-foreground text-sm font-semibold">
+                {profile?.name?.slice(0, 2).toUpperCase() || "CU"}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-sidebar-foreground truncate">
-              Coffers User
+              {profile?.name || "Coffers User"}
             </p>
             <p className="text-xs text-sidebar-foreground/50 truncate">
-              user@coffers.app
+              {profile?.email || "user@coffers.app"}
             </p>
           </div>
         </div>
@@ -153,12 +157,12 @@ function SidebarContent({ onClose }: SidebarContentProps) {
   );
 }
 
-export default function Sidebar({ open, onClose }: SidebarProps) {
+export default function Sidebar({ open, onClose, profile }: SidebarProps) {
   return (
     <>
       {/* Desktop — fixed sidebar, hidden on mobile */}
       <aside className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-72 lg:flex-col lg:border-r lg:border-sidebar-border">
-        <SidebarContent />
+        <SidebarContent profile={profile} />
       </aside>
 
       {/* Mobile — sheet overlay */}
@@ -175,7 +179,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
           <SheetHeader className="sr-only">
             <SheetTitle>Navigation</SheetTitle>
           </SheetHeader>
-          <SidebarContent onClose={onClose} />
+          <SidebarContent onClose={onClose} profile={profile} />
         </SheetContent>
       </Sheet>
     </>

@@ -14,82 +14,28 @@ export async function GET(request: NextRequest) {
     await connectToDatabase();
 
     const accounts = await Account.find({ userId }).sort({ createdAt: 1 }).lean();
+    const transactions = await Transaction.find({ userId }).select("type amount accountId toAccountId payments").lean();
 
     // Calculate current balance for each account from transactions
-    const accountsWithBalance = await Promise.all(
-      accounts.map(async (account) => {
-        const txAgg = await Transaction.aggregate([
-          {
-            $match: {
-              userId: account.userId,
-              $or: [
-                { accountId: account._id, type: "income" },
-                { accountId: account._id, type: "expense" },
-                { toAccountId: account._id, type: "transfer" },
-                { accountId: account._id, type: "transfer" },
-              ],
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              income: {
-                $sum: {
-                  $cond: [{ $eq: ["$type", "income"] }, "$amount", 0],
-                },
-              },
-              expense: {
-                $sum: {
-                  $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0],
-                },
-              },
-              transferIn: {
-                $sum: {
-                  $cond: [
-                    { $eq: ["$toAccountId", account._id] },
-                    "$amount",
-                    0,
-                  ],
-                },
-              },
-              transferOut: {
-                $sum: {
-                  $cond: [
-                    {
-                      $and: [
-                        { $eq: ["$type", "transfer"] },
-                        { $eq: ["$accountId", account._id] },
-                      ],
-                    },
-                    "$amount",
-                    0,
-                  ],
-                },
-              },
-            },
-          },
-        ]);
-
-        const agg = txAgg[0] || {
-          income: 0,
-          expense: 0,
-          transferIn: 0,
-          transferOut: 0,
-        };
-
-        const currentBalance =
-          account.openingBalance +
-          agg.income -
-          agg.expense +
-          agg.transferIn -
-          agg.transferOut;
+    const accountsWithBalance = accounts.map((account) => {
+        let currentBalance = account.openingBalance;
+        transactions.forEach((transaction) => {
+          if (transaction.type === "income" && String(transaction.accountId) === String(account._id)) {
+            currentBalance += transaction.amount;
+          } else if (transaction.type === "expense") {
+            const payment = transaction.payments?.find((item) => String(item.accountId) === String(account._id));
+            currentBalance -= payment?.amount ?? (String(transaction.accountId) === String(account._id) ? transaction.amount : 0);
+          } else if (transaction.type === "transfer") {
+            if (String(transaction.accountId) === String(account._id)) currentBalance -= transaction.amount;
+            if (String(transaction.toAccountId) === String(account._id)) currentBalance += transaction.amount;
+          }
+        });
 
         return {
           ...account,
           currentBalance,
         };
-      })
-    );
+      });
 
     const totalBalance = accountsWithBalance.reduce(
       (sum, acc) => sum + acc.currentBalance,

@@ -51,7 +51,7 @@ function LoginForm() {
         <h2 className="text-xl font-bold text-brand-secondary tracking-tight">
           Welcome back
         </h2>
-        <p className="text-xs text-brand-neutral/50 mt-1">
+        <p className="text-xs text-brand-neutral mt-1">
           Sign in to continue to Coffers
         </p>
       </div>
@@ -64,16 +64,16 @@ function LoginForm() {
         )}
 
         <div className="space-y-1">
-          <Label htmlFor="email" className="text-xs font-medium text-brand-neutral/60">
+          <Label htmlFor="email" className="text-xs font-medium text-brand-neutral">
             Email
           </Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="email"
               type="email"
               placeholder="you@example.com"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               autoComplete="email"
               required
               value={email}
@@ -84,7 +84,7 @@ function LoginForm() {
 
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-xs font-medium text-brand-neutral/60">
+            <Label htmlFor="password" className="text-xs font-medium text-brand-neutral">
               Password
             </Label>
             <Link
@@ -95,12 +95,12 @@ function LoginForm() {
             </Link>
           </div>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="password"
               type="password"
               placeholder="Enter your password"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               autoComplete="current-password"
               required
               value={password}
@@ -125,7 +125,7 @@ function LoginForm() {
         </Button>
       </form>
 
-      <p className="text-center text-xs text-brand-neutral/40">
+      <p className="text-center text-xs text-brand-neutral">
         Don&apos;t have an account?{" "}
         <Link
           href="/register"

@@ -1,20 +1,22 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Menu, Bell } from "lucide-react";
 import Image from "next/image";
+import type { DashboardProfile } from "@/app/dashboard/layout";
 
 interface TopBarProps {
   onMenuClick: () => void;
+  profile?: DashboardProfile | null;
 }
 
-export default function TopBar({ onMenuClick }: TopBarProps) {
+export default function TopBar({ onMenuClick, profile }: TopBarProps) {
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-border">
-      <div className="flex items-center justify-between h-14 px-4 lg:h-16 lg:px-8">
+      <div className="relative flex items-center justify-between h-14 px-4 lg:h-16 lg:px-8">
         {/* Left — hamburger + logo on mobile, brand on desktop */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 lg:static">
           <Button
             variant="ghost"
             size="icon"
@@ -26,10 +28,10 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           </Button>
 
           {/* Mobile: logo + name */}
-          <div className="flex items-center gap-2 lg:hidden">
+          <div className="absolute left-1/2 flex -translate-x-1/2 items-center justify-center gap-2 lg:hidden">
             <div className="relative w-7 h-7 rounded-lg overflow-hidden">
               <Image
-                src="/Money-Logo-Graphics-1-1.jpg"
+                src="/coffers-logo.png"
                 alt="Coffers"
                 fill
                 className="object-cover"
@@ -47,7 +49,7 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
         </div>
 
         {/* Right — notifications + avatar */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 lg:static">
           <Button variant="ghost" size="icon" className="relative h-10 w-10">
             <Bell className="h-5 w-5" />
             <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-destructive" />
@@ -55,9 +57,13 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
           </Button>
 
           <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-              CU
-            </AvatarFallback>
+            {profile?.profileImage ? (
+              <AvatarImage src={profile.profileImage} alt={profile.name} />
+            ) : (
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                {profile?.name?.slice(0, 2).toUpperCase() || "CU"}
+              </AvatarFallback>
+            )}
           </Avatar>
         </div>
       </div>

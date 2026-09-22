@@ -29,6 +29,7 @@ interface BudgetItem {
   price: number;
   bought: boolean;
   boughtAt?: string;
+  transactionId?: string;
   addedAt: string;
 }
 
@@ -55,6 +56,7 @@ interface Account {
   name: string;
   type: string;
 }
+interface Category { _id: string; name: string; icon?: string }
 
 function formatK(n: number) {
   return `K${Number(n || 0).toLocaleString()}`;
@@ -104,12 +106,16 @@ export default function BudgetsPage() {
   // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [limitEnabled, setLimitEnabled] = useState(false);
+  const [limitAmount, setLimitAmount] = useState("");
+  const [limitPeriod, setLimitPeriod] = useState("monthly");
+  const [limitCategoryId, setLimitCategoryId] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
   const [creating, setCreating] = useState(false);
 
   // Add item (inline form on detail)
   const [addItemOpen, setAddItemOpen] = useState(false);
-  const [itemName, setItemName] = useState("");
-  const [itemPrice, setItemPrice] = useState("");
+  const [itemRows, setItemRows] = useState([{ name: "", price: "" }]);
   const [adding, setAdding] = useState(false);
 
   // Close dialog
@@ -156,6 +162,27 @@ export default function BudgetsPage() {
 
   useEffect(load, []);
 
+  useEffect(() => {
+    netFetch("/api/categories?type=expense")
+      .then((r) => r.json())
+      .then((res) => { if (res.success) setCategories(res.data.categories || []); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!viewId) return;
+    netFetch("/api/accounts")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          const nextAccounts = res.data.accounts || [];
+          setAccounts(nextAccounts);
+          if (!accountId && nextAccounts[0]) setAccountId(nextAccounts[0]._id);
+        }
+      })
+      .catch(() => {});
+  }, [viewId]);
+
   const selected = budgets.find((b) => b._id === viewId) || null;
   const isActive = !selected || (selected.status ?? "active") === "active";
 
@@ -194,7 +221,12 @@ export default function BudgetsPage() {
     const res = await netFetch("/api/budgets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName.trim() }),
+      body: JSON.stringify({
+        name: newName.trim(),
+        amount: limitEnabled && limitAmount ? parseFloat(limitAmount) : undefined,
+        period: limitEnabled ? limitPeriod : undefined,
+        categoryId: limitEnabled && limitCategoryId ? limitCategoryId : undefined,
+      }),
     }).catch(() => null);
     const data = res ? await res.json().catch(() => ({ success: false })) : null;
     if (!res || !data) {
@@ -207,6 +239,9 @@ export default function BudgetsPage() {
       lastMutation.current = Date.now();
       setCreateOpen(false);
       setNewName("");
+      setLimitEnabled(false);
+      setLimitAmount("");
+      setLimitCategoryId("");
       setBudgets((prev) => [withTotals(data.data.budget), ...prev]);
       setViewId(data.data.budget._id);
     } else {
@@ -215,27 +250,31 @@ export default function BudgetsPage() {
   };
 
   // ── Add item ──────────────────────────────────────────────
-  const handleAddItem = async (e: React.FormEvent) => {
+  const handleAddItems = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!itemName.trim() || !(parseFloat(itemPrice) > 0)) return;
+    const items = itemRows
+      .map((row) => ({ name: row.name.trim(), price: parseFloat(row.price) }))
+      .filter((row) => row.name && row.price > 0);
+    if (!items.length) return;
     setAdding(true);
     const data = await patch({
-      action: "add_item",
-      name: itemName.trim(),
-      price: parseFloat(itemPrice),
+      action: "add_items",
+      items,
     });
     setAdding(false);
     if (data) {
-      setItemName("");
-      setItemPrice("");
-      setAddItemOpen(false);
+      setItemRows([{ name: "", price: "" }]);
     }
   };
 
   // ── Toggle bought ─────────────────────────────────────────
   const toggleItem = (item: BudgetItem) => {
     if (!isActive) return;
-    patch({ action: "toggle_item", itemId: item._id, bought: !item.bought });
+    if (!item.bought && !accountId) {
+      setError("Choose the payment account before marking an item bought.");
+      return;
+    }
+    patch({ action: "toggle_item", itemId: item._id, bought: !item.bought, accountId });
   };
 
   // ── Close budget ──────────────────────────────────────────
@@ -264,11 +303,7 @@ export default function BudgetsPage() {
     setClosing(false);
     if (data) {
       setCloseOpen(false);
-      setLastDeduct(
-        data.deducted > 0
-          ? `${formatK(data.deducted)} deducted from ${data.deductedFrom}`
-          : "Budget closed — nothing was deducted"
-      );
+      setLastDeduct("Budget closed. Bought items were already recorded when checked.");
       load();
     } else {
       // If the first attempt landed server-side but the response was lost,
@@ -329,12 +364,12 @@ export default function BudgetsPage() {
         )}
 
         {/* Legacy category-limit progress (old budgets only) */}
-        {selected.amount && selected.amount > 0 && selected.categoryId && (
+        {selected.amount && selected.amount > 0 && (
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">
-                  {selected.categoryId.icon} {selected.categoryId.name} limit
+                  {selected.categoryId ? `${selected.categoryId.icon || ""} ${selected.categoryId.name} limit` : "All expenses limit"}
                 </span>
                 <span className="text-xs text-muted-foreground capitalize">{selected.period}</span>
               </div>
@@ -356,7 +391,7 @@ export default function BudgetsPage() {
               <h2 className="text-sm font-semibold">Items</h2>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {items.length} item{items.length === 1 ? "" : "s"}
-                {items.length > 0 && ` · ${markedCount} ticked`}
+                {items.length > 0 && ` · ${markedCount} bought`}
               </p>
             </div>
             <div className="text-right">
@@ -438,46 +473,43 @@ export default function BudgetsPage() {
           )}
         </Card>
 
+        {isActive && (
+          <div className="rounded-xl border border-accent/20 bg-accent/5 px-4 py-3">
+            <Label className="text-xs font-semibold">Pay checked items from</Label>
+            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className="mt-1.5 w-full h-10 rounded-xl border border-input bg-white px-3 text-sm">
+              <option value="">Choose payment account</option>
+              {accounts.map((account) => <option key={account._id} value={account._id}>{account.name} ({account.type.replace("_", " ")})</option>)}
+            </select>
+            <p className="text-[11px] text-muted-foreground mt-1.5">Checking an item records its expense immediately. Unchecking reverses that item&apos;s expense.</p>
+          </div>
+        )}
+
         {/* Inline add-item form (active budgets) */}
         {addItemOpen && isActive && (
           <Card>
             <CardContent className="p-4">
-              <form onSubmit={handleAddItem} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm">Item name</Label>
-                    <Input
-                      placeholder="e.g. Milk"
-                      value={itemName}
-                      onChange={(e) => setItemName(e.target.value)}
-                      className="h-11"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm">Price (K)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      placeholder="0.00"
-                      value={itemPrice}
-                      onChange={(e) => setItemPrice(e.target.value)}
-                      className="h-11 font-mono"
-                      required
-                    />
-                  </div>
+              <form onSubmit={handleAddItems} className="space-y-3">
+                <div className="space-y-2">
+                  {itemRows.map((row, index) => (
+                    <div key={index} className="flex gap-2">
+                      <Input placeholder="Item name" value={row.name} onChange={(e) => setItemRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, name: e.target.value } : entry))} className="h-10 flex-1" autoFocus={index === 0} />
+                      <Input type="number" step="0.01" min="0.01" placeholder="Price" value={row.price} onChange={(e) => setItemRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, price: e.target.value } : entry))} className="h-10 w-28 font-mono" />
+                      {itemRows.length > 1 && <Button type="button" variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={() => setItemRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}><X className="h-4 w-4" /></Button>}
+                    </div>
+                  ))}
                 </div>
+                <Button type="button" variant="outline" className="w-full h-10" onClick={() => setItemRows((current) => [...current, { name: "", price: "" }])}>
+                  <Plus className="h-4 w-4" /> Add another item
+                </Button>
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1 h-11" disabled={adding}>
-                    {adding ? "Adding..." : "Add item"}
+                    {adding ? "Adding..." : `Add ${itemRows.length} item${itemRows.length === 1 ? "" : "s"}`}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     className="h-11"
-                    onClick={() => setAddItemOpen(false)}
+                    onClick={() => { setAddItemOpen(false); setItemRows([{ name: "", price: "" }]); }}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -517,37 +549,20 @@ export default function BudgetsPage() {
             <DialogHeader>
               <DialogTitle>Close budget</DialogTitle>
               <DialogDescription>
-                {markedCount > 0
-                  ? `${markedCount} ticked item${markedCount === 1 ? "" : "s"} will be deducted from your balance.`
-                  : "No items are ticked, so nothing will be deducted."}
+                  {markedCount > 0
+                    ? `${markedCount} bought item${markedCount === 1 ? "" : "s"} are already recorded in your transactions.`
+                    : "No items have been bought yet. Closing only archives this list."}
               </DialogDescription>
             </DialogHeader>
 
             <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 flex items-center justify-between">
               <span className="text-sm text-muted-foreground">
-                {markedCount} of {items.length} items ticked
+                {markedCount} of {items.length} items bought
               </span>
               <span className="text-lg font-mono font-bold">
-                {formatK(markedTotal)}
+                {formatK(markedTotal)} recorded
               </span>
             </div>
-
-            {markedCount > 0 && (
-              <div className="space-y-1.5">
-                <Label className="text-sm">Deduct from</Label>
-                <select
-                  value={accountId}
-                  onChange={(e) => setAccountId(e.target.value)}
-                  className="w-full h-11 rounded-xl border border-input bg-white px-3 text-sm"
-                >
-                  {accounts.map((a) => (
-                    <option key={a._id} value={a._id}>
-                      {a.name} ({a.type.replace("_", " ")})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
 
             <div className="flex gap-2 pt-1">
               <Button
@@ -589,6 +604,9 @@ export default function BudgetsPage() {
           variant="outline"
           onClick={() => {
             setNewName("");
+            setLimitEnabled(false);
+            setLimitAmount("");
+            setLimitCategoryId("");
             setError(null);
             setCreateOpen(true);
           }}
@@ -623,7 +641,7 @@ export default function BudgetsPage() {
           {budgets.map((b) => {
             const active = (b.status ?? "active") === "active";
             const hasItems = (b.items?.length || 0) > 0;
-            const hasLimit = !!b.amount && !!b.categoryId;
+            const hasLimit = !!b.amount;
             return (
               <button
                 key={b._id}
@@ -691,6 +709,36 @@ export default function BudgetsPage() {
                 autoFocus
               />
             </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input type="checkbox" checked={limitEnabled} onChange={(e) => setLimitEnabled(e.target.checked)} />
+              Add an optional spending limit
+            </label>
+            {limitEnabled && (
+              <div className="space-y-3 rounded-xl border border-border bg-muted/30 p-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Limit amount (K)</Label>
+                    <Input type="number" min="0.01" step="0.01" placeholder="e.g. 5000" value={limitAmount} onChange={(e) => setLimitAmount(e.target.value)} className="h-10 font-mono" required={limitEnabled} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">Period</Label>
+                    <select value={limitPeriod} onChange={(e) => setLimitPeriod(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-white px-3 text-sm">
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Category (optional)</Label>
+                  <select value={limitCategoryId} onChange={(e) => setLimitCategoryId(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-white px-3 text-sm">
+                    <option value="">All expense categories</option>
+                    {categories.map((category) => <option key={category._id} value={category._id}>{category.icon} {category.name}</option>)}
+                  </select>
+                </div>
+                <p className="text-[11px] text-muted-foreground">The limit is optional and only monitors spending. It does not block purchases.</p>
+              </div>
+            )}
             <Button type="submit" className="w-full h-11" disabled={creating}>
               {creating ? "Creating..." : "Create budget"}
             </Button>

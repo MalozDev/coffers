@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
         const status = budget.status || "active";
 
         // Legacy category-limit budgets: spending progress
-        if (!budget.categoryId || !budget.amount) {
+        if (!budget.amount) {
           return {
             ...budget,
             status,
@@ -57,14 +57,16 @@ export async function GET(request: NextRequest) {
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
         }
 
+        const expenseMatch: Record<string, unknown> = {
+          userId: budget.userId,
+          type: "expense",
+          date: { $gte: startDate, $lte: now },
+        };
+        if (budget.categoryId) expenseMatch.categoryId = budget.categoryId?._id || budget.categoryId;
+
         const spent = await Transaction.aggregate([
           {
-            $match: {
-              userId: budget.userId,
-              type: "expense",
-              categoryId: budget.categoryId?._id || budget.categoryId,
-              date: { $gte: startDate, $lte: now },
-            },
+            $match: expenseMatch,
           },
           { $group: { _id: null, total: { $sum: "$amount" } } },
         ]);

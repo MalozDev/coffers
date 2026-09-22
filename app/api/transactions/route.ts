@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .populate("categoryId", "name color icon")
         .populate("accountId", "name type")
+        .populate("toAccountId", "name type")
         .lean(),
       Transaction.countDocuments(query),
     ]);
@@ -109,8 +110,81 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
 
-    const { type, amount, categoryId, accountId, toAccountId, description, note, date } =
+    const { type, amount, categoryId, accountId, toAccountId, description, note, date, payments } =
       result.data;
+
+    const normalizedPayments = type === "expense"
+      ? (payments?.length ? payments : [{ accountId, amount }])
+      : undefined;
+
+    const accountIds = type === "expense"
+      ? normalizedPayments?.map((payment) => payment.accountId) || []
+      : [accountId, ...(toAccountId ? [toAccountId] : [])];
+    const ownedAccounts = await Account.countDocuments({ userId, _id: { $in: accountIds } });
+    if (ownedAccounts !== new Set(accountIds).size) {
+      return NextResponse.json({ success: false, error: "One or more accounts are invalid" }, { status: 400 });
+    }
+
+    if (type === "expense" && normalizedPayments) {
+      const accounts = await Account.find({ userId }).lean();
+      const transactions = await Transaction.find({ userId }).select("type amount accountId toAccountId payments").lean();
+      const balances = new Map(accounts.map((account) => [String(account._id), account.openingBalance]));
+      transactions.forEach((transaction) => {
+        if (transaction.type === "income") {
+          const key = String(transaction.accountId);
+          balances.set(key, (balances.get(key) || 0) + transaction.amount);
+        } else if (transaction.type === "expense") {
+          if (transaction.payments?.length) {
+            transaction.payments.forEach((payment) => {
+              const key = String(payment.accountId);
+              if (balances.has(key)) balances.set(key, (balances.get(key) || 0) - payment.amount);
+            });
+          } else {
+            const key = String(transaction.accountId);
+            if (balances.has(key)) balances.set(key, (balances.get(key) || 0) - transaction.amount);
+          }
+        } else if (transaction.type === "transfer") {
+          const from = String(transaction.accountId);
+          const to = String(transaction.toAccountId);
+          if (balances.has(from)) balances.set(from, (balances.get(from) || 0) - transaction.amount);
+          if (balances.has(to)) balances.set(to, (balances.get(to) || 0) + transaction.amount);
+        }
+      });
+
+      const shortPayment = normalizedPayments.find((payment) => payment.amount > (balances.get(String(payment.accountId)) || 0));
+      if (shortPayment) {
+        const totalAvailable = normalizedPayments.reduce((sum, payment) => sum + Math.max(balances.get(String(payment.accountId)) || 0, 0), 0);
+        return NextResponse.json({
+          success: false,
+          error: totalAvailable >= amount
+            ? "This account cannot cover its payment share. Split the expense across accounts using their available balances."
+            : "The selected accounts do not have enough available balance for this expense.",
+          suggestSplit: totalAvailable >= amount,
+        }, { status: 409 });
+      }
+    }
+
+    if (type === "transfer") {
+      const sourceAccount = await Account.findOne({ _id: accountId, userId }).lean();
+      const transactions = await Transaction.find({ userId }).select("type amount accountId toAccountId payments").lean();
+      let sourceBalance = sourceAccount?.openingBalance || 0;
+      transactions.forEach((transaction) => {
+        if (String(transaction.accountId) === String(accountId)) {
+          if (transaction.type === "income") sourceBalance += transaction.amount;
+          if (transaction.type === "expense") {
+            const payment = transaction.payments?.find((item) => String(item.accountId) === String(accountId));
+            sourceBalance -= payment?.amount ?? transaction.amount;
+          }
+          if (transaction.type === "transfer") sourceBalance -= transaction.amount;
+        }
+        if (transaction.type === "transfer" && String(transaction.toAccountId) === String(accountId)) {
+          sourceBalance += transaction.amount;
+        }
+      });
+      if (amount > sourceBalance) {
+        return NextResponse.json({ success: false, error: `Not enough balance in the source account. Available: K${Math.max(sourceBalance, 0).toLocaleString()}` }, { status: 409 });
+      }
+    }
 
     // Create transaction
     const transaction = await Transaction.create({
@@ -120,28 +194,11 @@ export async function POST(request: NextRequest) {
       categoryId,
       accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
+      payments: normalizedPayments,
       description,
       note,
       date,
     });
-
-    // Update account balances
-    if (type === "income") {
-      await Account.findByIdAndUpdate(accountId, {
-        $inc: { openingBalance: amount },
-      });
-    } else if (type === "expense") {
-      await Account.findByIdAndUpdate(accountId, {
-        $inc: { openingBalance: -amount },
-      });
-    } else if (type === "transfer" && toAccountId) {
-      await Account.findByIdAndUpdate(accountId, {
-        $inc: { openingBalance: -amount },
-      });
-      await Account.findByIdAndUpdate(toAccountId, {
-        $inc: { openingBalance: amount },
-      });
-    }
 
     return NextResponse.json(
       { success: true, data: { transaction } },

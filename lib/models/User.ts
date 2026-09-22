@@ -4,6 +4,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   phoneNumber: string;
+  profileImage?: string;
   passwordHash: string;
   defaultCurrency: "ZMK";
   createdAt: Date;
@@ -30,6 +31,10 @@ const UserSchema = new Schema<IUser>(
       type: String,
       required: [true, "Phone number is required"],
       trim: true,
+    },
+    profileImage: {
+      type: String,
+      maxlength: [4000000, "Profile image is too large"],
     },
     passwordHash: {
       type: String,

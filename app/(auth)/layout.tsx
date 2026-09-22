@@ -10,9 +10,9 @@ export default function AuthLayout({
       {/* Logo + brand */}
       <div className="text-center mb-6">
         <div className="flex justify-center mb-3">
-          <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card ring-1 border border-border">
+          <div className="relative w-16 h-16 rounded-2xl overflow-hidden shadow-card ring-1">
             <Image
-              src="/Money-Logo-Graphics-1-1.jpg"
+              src="/coffers-logo.png"
               alt="Coffers Logo"
               fill
               className="object-cover"
@@ -23,7 +23,7 @@ export default function AuthLayout({
         <h1 className="text-3xl font-extrabold text-brand-secondary tracking-tight">
           Coffers
         </h1>
-        <p className="text-brand-neutral/50 mt-1 text-xs">
+        <p className="text-brand-neutral mt-1 text-xs">
           Know where your money went. Know where it&apos;s going.
         </p>
       </div>
@@ -34,7 +34,7 @@ export default function AuthLayout({
       </div>
 
       {/* Footer */}
-      <p className="text-center text-brand-neutral/30 text-[11px] mt-4">
+      <p className="text-center text-brand-neutral text-[11px] mt-4">
         Default currency:{" "}
         <span className="font-semibold text-brand-secondary/60">ZMK (Kwacha)</span>
       </p>

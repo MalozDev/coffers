@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, Target, Calendar, TrendingUp } from "lucide-react";
+import { useToast } from "@/components/ui/toast-provider";
+import { Plus, X, Target, Calendar, TrendingUp, Undo2 } from "lucide-react";
 
 interface Goal {
   _id: string; name: string; targetAmount: number; currentAmount: number;
@@ -15,21 +17,28 @@ interface Goal {
   progress: number; remaining: number; monthsToComplete: number;
   projectedDate: string | null;
 }
+interface Account { _id: string; name: string; type: string }
 
 function formatK(n: number) { return `K${n.toLocaleString()}`; }
 
 export default function GoalsPage() {
+  const router = useRouter();
+  useEffect(() => { router.replace("/dashboard/savings"); }, [router]);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [contributeId, setContributeId] = useState<string | null>(null);
   const [contributeAmount, setContributeAmount] = useState("");
+  const [contributeAccountId, setContributeAccountId] = useState("");
+  const [cancelAccountId, setCancelAccountId] = useState<Record<string, string>>({});
 
   const [name, setName] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [targetDate, setTargetDate] = useState("");
   const [monthlyContribution, setMonthlyContribution] = useState("");
   const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
 
   const fetchGoals = () => {
     fetch("/api/goals").then((r) => r.json()).then((res) => {
@@ -38,7 +47,12 @@ export default function GoalsPage() {
     });
   };
 
-  useEffect(() => { fetchGoals(); }, []);
+  useEffect(() => {
+    fetchGoals();
+    fetch("/api/accounts").then((r) => r.json()).then((res) => {
+      if (res.success) setAccounts(res.data.accounts);
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,19 +64,39 @@ export default function GoalsPage() {
       body: JSON.stringify({ name, targetAmount: parseFloat(targetAmount), targetDate, monthlyContribution: parseFloat(monthlyContribution) || 0 }),
     });
     const data = await res.json();
-    if (data.success) { setShowForm(false); setName(""); setTargetAmount(""); setTargetDate(""); setMonthlyContribution(""); fetchGoals(); }
+    if (data.success) { setShowForm(false); setName(""); setTargetAmount(""); setTargetDate(""); setMonthlyContribution(""); showToast("success", "Saving created successfully."); fetchGoals(); }
+    else showToast("error", data.error || "Could not create saving.");
     setSaving(false);
   };
 
   const handleContribute = async (goalId: string) => {
     if (!contributeAmount) return;
-    await fetch(`/api/goals/${goalId}`, {
+    if (!contributeAccountId) return;
+    const response = await fetch(`/api/goals/${goalId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contribution: parseFloat(contributeAmount) }),
+      body: JSON.stringify({ contribution: parseFloat(contributeAmount), accountId: contributeAccountId }),
     });
+    const result = await response.json();
+    if (!result.success) { showToast("error", result.error || "Could not add to saving."); return; }
     setContributeId(null);
     setContributeAmount("");
+    setContributeAccountId("");
+    showToast("success", "Money added to saving.");
+    fetchGoals();
+  };
+
+  const handleCancelGoal = async (goalId: string) => {
+    const returnAccountId = cancelAccountId[goalId];
+    if (!returnAccountId && goals.find((goal) => goal._id === goalId)?.currentAmount) return;
+    const response = await fetch(`/api/goals/${goalId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "cancelled", returnAccountId }),
+    });
+    const result = await response.json();
+    if (!result.success) { showToast("error", result.error || "Could not cancel saving."); return; }
+    showToast("success", "Saving cancelled.");
     fetchGoals();
   };
 
@@ -148,17 +182,32 @@ export default function GoalsPage() {
 
                 {/* Contribute */}
                 {contributeId === g._id ? (
-                  <div className="flex gap-2 mt-3">
+                  <div className="space-y-2 mt-3">
+                    <select value={contributeAccountId} onChange={(e) => setContributeAccountId(e.target.value)} className="w-full h-9 rounded-xl border border-input bg-white px-3 text-sm">
+                      <option value="">Fund from account</option>
+                      {accounts.filter((account) => account.type !== "savings").map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}
+                    </select>
+                  <div className="flex gap-2">
                     <Input type="number" step="0.01" min="1" placeholder="Amount"
                       value={contributeAmount} onChange={(e) => setContributeAmount(e.target.value)}
                       className="h-9 text-sm font-mono flex-1" />
                     <Button size="sm" className="h-9" onClick={() => handleContribute(g._id)}>Add</Button>
                     <Button size="sm" variant="ghost" className="h-9" onClick={() => { setContributeId(null); setContributeAmount(""); }}>Cancel</Button>
                   </div>
+                  </div>
                 ) : (
-                  <Button size="sm" variant="secondary" className="mt-3 h-9" onClick={() => setContributeId(g._id)}>
-                    <TrendingUp className="h-3.5 w-3.5 mr-1" /> Contribute
-                  </Button>
+                  <div className="flex items-center gap-2 mt-3">
+                    <Button size="sm" variant="secondary" className="h-9" onClick={() => setContributeId(g._id)}>
+                      <TrendingUp className="h-3.5 w-3.5 mr-1" /> Contribute
+                    </Button>
+                    {g.status === "active" && (
+                      <select value={cancelAccountId[g._id] || ""} onChange={(e) => setCancelAccountId((current) => ({ ...current, [g._id]: e.target.value }))} className="h-9 min-w-0 flex-1 rounded-xl border border-input bg-white px-2 text-xs">
+                        <option value="">Return funds to...</option>
+                        {accounts.filter((account) => account.type !== "savings").map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}
+                      </select>
+                    )}
+                    {g.status === "active" && <Button size="sm" variant="ghost" className="h-9 px-2" onClick={() => handleCancelGoal(g._id)} title="Cancel goal"><Undo2 className="h-4 w-4" /></Button>}
+                  </div>
                 )}
               </CardContent>
             </Card>

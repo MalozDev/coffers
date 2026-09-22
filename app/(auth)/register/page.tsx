@@ -58,10 +58,10 @@ export default function RegisterPage() {
   return (
     <div className="space-y-4">
       <div className="text-center">
-        <h2 className="text-xl font-bold text-brand-secondary tracking-tight">
+        <h2 className="text-xl font-bold text-black-400">
           Create your account
         </h2>
-        <p className="text-xs text-brand-neutral/50 mt-1">
+        <p className="text-xs text-black-400/50 mt-1">
           Start tracking your finances in minutes
         </p>
       </div>
@@ -74,16 +74,16 @@ export default function RegisterPage() {
         )}
 
         <div className="space-y-1">
-          <Label htmlFor="name" className="text-xs font-medium text-brand-neutral/60">
+          <Label htmlFor="name" className="text-xs font-medium text-brand-neutral">
             Full Name
           </Label>
           <div className="relative">
-            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="name"
               type="text"
-              placeholder="John Doe"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              placeholder="Stephan Malobeka"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               autoComplete="name"
               required
               value={name}
@@ -93,16 +93,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="email" className="text-xs font-medium text-brand-neutral/60">
+          <Label htmlFor="email" className="text-xs font-medium text-brand-neutral">
             Email
           </Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="email"
               type="email"
               placeholder="you@example.com"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               autoComplete="email"
               required
               value={email}
@@ -112,16 +112,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="phone" className="text-xs font-medium text-brand-neutral/60">
+          <Label htmlFor="phone" className="text-xs font-medium text-brand-neutral">
             Phone Number
           </Label>
           <div className="relative">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="phone"
               type="tel"
-              placeholder="+260 97 123 4567"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              placeholder="0 97 123 4567"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               autoComplete="tel"
               required
               value={phone}
@@ -131,16 +131,16 @@ export default function RegisterPage() {
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="password" className="text-xs font-medium text-brand-neutral/60">
+          <Label htmlFor="password" className="text-xs font-medium text-brand-neutral">
             Password
           </Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral/30" />
+            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-neutral" />
             <Input
               id="password"
               type="password"
               placeholder="At least 8 characters"
-              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral/30 focus:border-brand-accent focus:ring-brand-accent/30"
+              className="h-10 text-sm pl-9 bg-background border-border text-brand-neutral placeholder:text-brand-neutral focus:border-brand-accent focus:ring-brand-accent/30"
               minLength={8}
               autoComplete="new-password"
               required
@@ -151,15 +151,15 @@ export default function RegisterPage() {
         </div>
 
         <div className="bg-background border border-border rounded-lg px-3 py-2.5">
-          <p className="text-[11px] text-brand-neutral/40">
+          <p className="text-[11px] text-brand-neutral">
             Default currency:{" "}
-            <span className="font-semibold text-brand-secondary/70">ZMK (Kwacha)</span>
+            <span className="font-semibold text-brand-secondary">ZMK (Kwacha)</span>
           </p>
         </div>
 
         <Button
           type="submit"
-          className="w-full h-10 text-sm font-semibold bg-brand-secondary hover:bg-brand-secondary/90 text-white rounded-xl transition-all active:scale-[0.98]"
+          className="w-full h-10 text-sm font-semibold bg-brand-secondary hover:bg-brand-secondary text-white rounded-xl transition-all active:scale-[0.98]"
           disabled={loading}
         >
           {loading ? (
@@ -173,7 +173,7 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <p className="text-center text-xs text-brand-neutral/40">
+      <p className="text-center text-xs text-brand-neutral">
         Already have an account?{" "}
         <Link
           href="/login"

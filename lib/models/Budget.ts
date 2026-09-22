@@ -6,6 +6,7 @@ export interface IBudgetItem {
   price: number;
   bought: boolean;
   boughtAt?: Date;
+  transactionId?: mongoose.Types.ObjectId;
   addedAt: Date;
 }
 
@@ -39,6 +40,7 @@ const BudgetItemSchema = new Schema<IBudgetItem>(
     },
     bought: { type: Boolean, default: false },
     boughtAt: { type: Date },
+    transactionId: { type: Schema.Types.ObjectId, ref: "Transaction" },
     addedAt: { type: Date, default: Date.now },
   },
   { _id: true }

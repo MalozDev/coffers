@@ -6,7 +6,7 @@ export const transactionSchema = z.object({
     .number()
     .positive("Amount must be greater than 0")
     .max(10000000, "Amount cannot exceed 10,000,000"),
-  categoryId: z.string().min(1, "Category is required"),
+  categoryId: z.string().min(1, "Category is required").optional(),
   accountId: z.string().min(1, "Account is required"),
   toAccountId: z.string().optional(),
   description: z
@@ -23,6 +23,20 @@ export const transactionSchema = z.object({
   date: z.coerce.date({
     error: "Date is required",
   }),
+  payments: z.array(z.object({
+    accountId: z.string().min(1),
+    amount: z.number().positive(),
+  })).min(1).optional(),
+}).superRefine((data, ctx) => {
+  if (data.type !== "transfer" && !data.categoryId) {
+    ctx.addIssue({ code: "custom", path: ["categoryId"], message: "Category is required" });
+  }
+  if (data.type === "expense" && data.payments) {
+    const total = data.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    if (Math.abs(total - data.amount) > 0.005) {
+      ctx.addIssue({ code: "custom", path: ["payments"], message: "Payment amounts must equal the expense amount" });
+    }
+  }
 });
 
 export const quickExpenseSchema = z.object({

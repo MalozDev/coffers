@@ -31,9 +31,10 @@ export async function GET(request: NextRequest) {
       recentTransactions,
       expectedIncome,
       activeGoals,
+      allTransactions,
     ] = await Promise.all([
       // Current user (for the dashboard greeting)
-      User.findOne({ _id: userId }).select("name email").lean(),
+      User.findOne({ _id: userId }).select("name email profileImage").lean(),
       // Accounts with balances
       Account.find({ userId }).lean(),
       // Today's income/expenses
@@ -94,44 +95,25 @@ export async function GET(request: NextRequest) {
         .sort({ createdAt: -1 })
         .limit(3)
         .lean(),
+      Transaction.find({ userId }).select("type amount accountId toAccountId payments").lean(),
     ]);
 
     // Calculate account balances
-    const accountBalances = await Promise.all(
-      accounts.map(async (account) => {
-        const txAgg = await Transaction.aggregate([
-          {
-            $match: {
-              userId: userIdOid,
-              $or: [
-                { accountId: account._id, type: { $in: ["income", "expense"] } },
-                { toAccountId: account._id, type: "transfer" },
-              ],
-            },
-          },
-          {
-            $group: {
-              _id: null,
-              income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } },
-              expense: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0] } },
-              transferIn: { $sum: { $cond: [{ $eq: ["$toAccountId", account._id] }, "$amount", 0] } },
-              transferOut: {
-                $sum: {
-                  $cond: [
-                    { $and: [{ $eq: ["$type", "transfer"] }, { $eq: ["$accountId", account._id] }] },
-                    "$amount",
-                    0,
-                  ],
-                },
-              },
-            },
-          },
-        ]);
-        const agg = txAgg[0] || { income: 0, expense: 0, transferIn: 0, transferOut: 0 };
-        const currentBalance = account.openingBalance + agg.income - agg.expense + agg.transferIn - agg.transferOut;
+    const accountBalances = accounts.map((account) => {
+        let currentBalance = account.openingBalance;
+        allTransactions.forEach((transaction) => {
+          if (transaction.type === "income" && String(transaction.accountId) === String(account._id)) {
+            currentBalance += transaction.amount;
+          } else if (transaction.type === "expense") {
+            const payment = transaction.payments?.find((item) => String(item.accountId) === String(account._id));
+            currentBalance -= payment?.amount ?? (String(transaction.accountId) === String(account._id) ? transaction.amount : 0);
+          } else if (transaction.type === "transfer") {
+            if (String(transaction.accountId) === String(account._id)) currentBalance -= transaction.amount;
+            if (String(transaction.toAccountId) === String(account._id)) currentBalance += transaction.amount;
+          }
+        });
         return { name: account.name, type: account.type, balance: currentBalance };
-      })
-    );
+      });
 
     const totalBalance = accountBalances.reduce((sum, a) => sum + a.balance, 0);
 
@@ -160,7 +142,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        user: user ? { name: user.name, email: user.email } : null,
+        user: user ? { name: user.name, email: user.email, profileImage: user.profileImage || null } : null,
         balance: {
           total: totalBalance,
           accounts: accountBalances,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db/connect";
-import { ExpectedIncome, Transaction, Account } from "@/lib/models";
+import { ExpectedIncome, Transaction, Account, Category } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
 
 // PATCH — mark as received (creates income transaction) or update
@@ -24,20 +24,26 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
       }
 
-      // Create income transaction
-      const accounts = await Account.find({ userId }).sort({ createdAt: 1 });
-      const accountId = accounts[0]?._id;
-
-      if (accountId) {
-        await Transaction.create({
-          userId,
-          type: "income",
-          amount: expected.amount,
-          accountId,
-          description: `Expected income: ${expected.source}`,
-          date: new Date(),
-        });
+      const accountId = body.accountId;
+      if (!accountId) {
+        return NextResponse.json({ success: false, error: "Choose the account where this income was received" }, { status: 400 });
       }
+
+      const account = await Account.findOne({ _id: accountId, userId });
+      const category = await Category.findOne({ userId, type: "income" }).sort({ createdAt: 1 });
+      if (!account || !category) {
+        return NextResponse.json({ success: false, error: "A valid account and income category are required" }, { status: 400 });
+      }
+
+      await Transaction.create({
+        userId,
+        type: "income",
+        amount: expected.amount,
+        accountId,
+        categoryId: category._id,
+        description: `Expected income: ${expected.source}`,
+        date: new Date(),
+      });
 
       expected.status = "received";
       await expected.save();

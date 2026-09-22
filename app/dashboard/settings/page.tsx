@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { User, Wallet, Tag, LogOut } from "lucide-react";
+import { User, Wallet, Tag, LogOut, ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface Account { _id: string; name: string; type: string; currentBalance: number }
@@ -20,6 +20,21 @@ export default function SettingsPage() {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
   const [newAccountType, setNewAccountType] = useState("cash");
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferFrom, setTransferFrom] = useState("");
+  const [transferTo, setTransferTo] = useState("");
+  const [transferDescription, setTransferDescription] = useState("");
+  const [transferSaving, setTransferSaving] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [profileImage, setProfileImage] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/accounts").then((r) => r.json()).then((res) => {
@@ -27,6 +42,78 @@ export default function SettingsPage() {
       setLoading(false);
     });
   }, []);
+
+  useEffect(() => {
+    fetch("/api/profile")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success) {
+          setName(res.data.user.name || "");
+          setEmail(res.data.user.email || "");
+          setPhoneNumber(res.data.user.phoneNumber || "");
+          setProfileImage(res.data.user.profileImage || null);
+        }
+        setProfileLoading(false);
+      })
+      .catch(() => {
+        setProfileError("Unable to load your profile");
+        setProfileLoading(false);
+      });
+  }, []);
+
+  const handleProfileImage = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setProfileError("Choose an image file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const size = 512;
+        const scale = Math.min(size / image.width, size / image.height, 1);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setProfileImage(canvas.toDataURL("image/jpeg", 0.82));
+        setProfileError(null);
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const saveProfile = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setProfileSaving(true);
+    setProfileError(null);
+    setProfileMessage(null);
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, phoneNumber, profileImage }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setProfileError(result.error || "Unable to save profile");
+        return;
+      }
+      setName(result.data.user.name);
+      setEmail(result.data.user.email);
+      setPhoneNumber(result.data.user.phoneNumber);
+      setProfileImage(result.data.user.profileImage || null);
+      setProfileMessage("Profile updated");
+      window.dispatchEvent(new CustomEvent("coffers:profile-updated", { detail: result.data.user }));
+      router.refresh();
+    } catch {
+      setProfileError("Network error. Please try again.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const addAccount = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +127,41 @@ export default function SettingsPage() {
     setShowAddAccount(false);
     const res = await fetch("/api/accounts").then((r) => r.json());
     if (res.success) setAccounts(res.data.accounts);
+  };
+
+  const refreshAccounts = async () => {
+    const response = await fetch("/api/accounts");
+    const result = await response.json();
+    if (result.success) setAccounts(result.data.accounts);
+  };
+
+  const handleTransfer = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!transferAmount || !transferFrom || !transferTo || transferFrom === transferTo) return;
+    setTransferSaving(true);
+    setTransferError(null);
+    const response = await fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "transfer",
+        amount: parseFloat(transferAmount),
+        accountId: transferFrom,
+        toAccountId: transferTo,
+        description: transferDescription.trim() || "Account transfer",
+        date: new Date().toISOString(),
+      }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success) {
+      setTransferError(result.error || "Could not move money");
+    } else {
+      setTransferAmount("");
+      setTransferDescription("");
+      setShowTransfer(false);
+      await refreshAccounts();
+    }
+    setTransferSaving(false);
   };
 
   const handleLogout = async () => {
@@ -63,21 +185,35 @@ export default function SettingsPage() {
             </div>
             <h3 className="text-sm font-semibold">Profile</h3>
           </div>
-          <div className="space-y-3">
+          {profileError && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{profileError}</p>}
+          {profileMessage && <p className="mb-3 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">{profileMessage}</p>}
+          {profileLoading ? <div className="h-48 rounded-xl bg-muted animate-pulse" /> : <form onSubmit={saveProfile} className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center text-lg font-bold text-primary">
+                {profileImage ? <img src={profileImage} alt={name} className="h-full w-full object-cover" /> : name.slice(0, 2).toUpperCase() || <User className="h-6 w-6" />}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
+                  Upload picture
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => handleProfileImage(e.target.files?.[0])} />
+                </label>
+                {profileImage && <Button type="button" variant="ghost" size="sm" onClick={() => setProfileImage(null)}>Remove</Button>}
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Name</Label>
-              <Input defaultValue="Coffers User" className="h-10" />
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="h-10" required />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Email</Label>
-              <Input defaultValue="user@coffers.app" className="h-10" disabled />
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" required />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Phone</Label>
-              <Input defaultValue="+260 97 000 0000" className="h-10" />
+              <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} className="h-10" required />
             </div>
-            <Button size="sm" className="w-full">Save Changes</Button>
-          </div>
+            <Button type="submit" size="sm" className="w-full" disabled={profileSaving}>{profileSaving ? "Saving..." : "Save Changes"}</Button>
+          </form>}
         </CardContent>
       </Card>
 
@@ -107,6 +243,24 @@ export default function SettingsPage() {
                 <option value="custom">Custom</option>
               </select>
               <Button type="submit" size="sm" className="h-10">Add</Button>
+            </form>
+          )}
+
+          <Button type="button" variant="outline" className="w-full mb-3 h-10" onClick={() => { setShowTransfer(!showTransfer); setTransferError(null); }}>
+            <ArrowRightLeft className="h-4 w-4 mr-2" /> Move money between accounts
+          </Button>
+
+          {showTransfer && (
+            <form onSubmit={handleTransfer} className="space-y-3 rounded-xl border border-accent/20 bg-accent/5 p-3 mb-3">
+              <div className="flex items-center gap-2"><ArrowRightLeft className="h-4 w-4 text-accent" /><p className="text-sm font-semibold">Transfer funds</p></div>
+              {transferError && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{transferError}</p>}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1"><Label className="text-xs">From</Label><select value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-white px-2 text-xs" required><option value="">Source account</option>{accounts.map((account) => <option key={account._id} value={account._id}>{account.name} · {formatK(account.currentBalance)}</option>)}</select></div>
+                <div className="space-y-1"><Label className="text-xs">To</Label><select value={transferTo} onChange={(e) => setTransferTo(e.target.value)} className="w-full h-10 rounded-xl border border-input bg-white px-2 text-xs" required><option value="">Destination</option>{accounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select></div>
+              </div>
+              <Input type="number" min="0.01" step="0.01" placeholder="Amount (K)" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} className="h-10 font-mono" required />
+              <Input placeholder="Description (optional)" value={transferDescription} onChange={(e) => setTransferDescription(e.target.value)} className="h-10" />
+              <Button type="submit" className="w-full h-10" disabled={transferSaving}>{transferSaving ? "Moving..." : "Move money"}</Button>
             </form>
           )}
 
