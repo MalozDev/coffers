@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { User, Wallet, Tag, LogOut, ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -20,6 +27,9 @@ export default function SettingsPage() {
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [newAccountName, setNewAccountName] = useState("");
   const [newAccountType, setNewAccountType] = useState("cash");
+  const [newAccountOpening, setNewAccountOpening] = useState("");
+  const [addAccountSaving, setAddAccountSaving] = useState(false);
+  const [addAccountError, setAddAccountError] = useState<string | null>(null);
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferAmount, setTransferAmount] = useState("");
   const [transferFrom, setTransferFrom] = useState("");
@@ -118,15 +128,34 @@ export default function SettingsPage() {
   const addAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAccountName) return;
-    await fetch("/api/accounts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newAccountName, type: newAccountType }),
-    });
-    setNewAccountName("");
-    setShowAddAccount(false);
-    const res = await fetch("/api/accounts").then((r) => r.json());
-    if (res.success) setAccounts(res.data.accounts);
+    setAddAccountSaving(true);
+    setAddAccountError(null);
+    try {
+      const response = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newAccountName,
+          type: newAccountType,
+          openingBalance: parseFloat(newAccountOpening) || 0,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setAddAccountError(result.error || "Could not add this account");
+        return;
+      }
+      setNewAccountName("");
+      setNewAccountOpening("");
+      setShowAddAccount(false);
+      await refreshAccounts();
+      // Make the new account immediately available across the app
+      window.dispatchEvent(new Event("coffers:data-updated"));
+    } catch {
+      setAddAccountError("Network error. Please try again.");
+    } finally {
+      setAddAccountSaving(false);
+    }
   };
 
   const refreshAccounts = async () => {
@@ -227,24 +256,83 @@ export default function SettingsPage() {
               </div>
               <h3 className="text-sm font-semibold">Accounts</h3>
             </div>
-            <Button size="sm" variant="ghost" onClick={() => setShowAddAccount(!showAddAccount)}>
-              {showAddAccount ? "Cancel" : "+ Add"}
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setNewAccountName("");
+                setNewAccountOpening("");
+                setAddAccountError(null);
+                setShowAddAccount(true);
+              }}
+            >
+              + Add
             </Button>
           </div>
 
-          {showAddAccount && (
-            <form onSubmit={addAccount} className="flex gap-2 mb-3">
-              <Input placeholder="Account name" value={newAccountName} onChange={(e) => setNewAccountName(e.target.value)} className="h-10 flex-1" />
-              <select value={newAccountType} onChange={(e) => setNewAccountType(e.target.value)} className="h-10 rounded-xl border border-input bg-white px-3 text-sm">
-                <option value="cash">Cash</option>
-                <option value="bank">Bank</option>
-                <option value="mobile_money">Mobile Money</option>
-                <option value="savings">Savings</option>
-                <option value="custom">Custom</option>
-              </select>
-              <Button type="submit" size="sm" className="h-10">Add</Button>
-            </form>
-          )}
+          {/* Add account modal */}
+          <Dialog open={showAddAccount} onOpenChange={setShowAddAccount}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Add account</DialogTitle>
+                <DialogDescription>
+                  New accounts are available everywhere you pick an account.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={addAccount} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Account name</Label>
+                  <Input
+                    placeholder="e.g. Main Account"
+                    value={newAccountName}
+                    onChange={(e) => setNewAccountName(e.target.value)}
+                    className="h-11"
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Account type</Label>
+                  <select
+                    value={newAccountType}
+                    onChange={(e) => setNewAccountType(e.target.value)}
+                    className="w-full h-11 rounded-xl border border-input bg-white px-3 text-sm"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="bank">Bank</option>
+                    <option value="mobile_money">Mobile Money</option>
+                    <option value="savings">Savings</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm">Opening balance (K)</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={newAccountOpening}
+                    onChange={(e) => setNewAccountOpening(e.target.value)}
+                    className="h-11 font-mono"
+                  />
+                </div>
+                {addAccountError && (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+                    {addAccountError}
+                  </p>
+                )}
+                <div className="flex gap-2 pt-1">
+                  <Button type="button" variant="outline" className="flex-1 h-11" onClick={() => setShowAddAccount(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" className="flex-1 h-11" disabled={addAccountSaving}>
+                    {addAccountSaving ? "Adding..." : "Add"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
 
           <Button type="button" variant="outline" className="w-full mb-3 h-10" onClick={() => { setShowTransfer(!showTransfer); setTransferError(null); }}>
             <ArrowRightLeft className="h-4 w-4 mr-2" /> Move money between accounts

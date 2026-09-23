@@ -38,6 +38,7 @@ interface DashboardData {
     amount: number;
     dueDate: string;
   }>;
+  upcomingCount: number;
   insights: string[];
 }
 
@@ -123,7 +124,9 @@ export default function DashboardPage() {
   const committed = data.month.expenses;
   const firstName = data.user?.name?.split(" ")[0] || "";
 
-  const upcomingCount = data.upcomingReminders.length;
+  // "Due" = a bill whose date has been reached but not paid yet; completed
+  // (closed) reminders are excluded server-side, so this drops as you close them.
+  const upcomingCount = data.upcomingCount ?? data.upcomingReminders.length;
 
   return (
     <div className="space-y-3">
@@ -262,7 +265,7 @@ export default function DashboardPage() {
       <Card>
         <div className="grid grid-cols-3 divide-x divide-border">
           <Link
-            href="/dashboard/analysis"
+            href="/dashboard/income"
             className="flex flex-col items-center gap-1 px-2 py-3 text-center active:bg-muted/50"
           >
             <TrendingUp className="h-4 w-4 text-green-600" />
@@ -278,10 +281,11 @@ export default function DashboardPage() {
             className="flex flex-col items-center gap-1 px-2 py-3 text-center active:bg-muted/50"
           >
             <Bell className="h-4 w-4 text-orange-500" />
+            {/* Number + "due" stacked below the label (mobile) */}
             <span className="text-[10px] font-medium text-foreground leading-tight">
               Upcoming
             </span>
-            <span className="text-[10px] font-mono font-semibold text-muted-foreground">
+            <span className="text-[11px] font-mono font-bold leading-tight text-orange-600">
               {upcomingCount > 0 ? `${upcomingCount} due` : "Clear"}
             </span>
           </Link>

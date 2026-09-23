@@ -46,12 +46,17 @@ export async function GET(request: NextRequest) {
     if (startDate || endDate) {
       query.date = {};
       if (startDate) (query.date as Record<string, Date>).$gte = new Date(startDate);
-      if (endDate) (query.date as Record<string, Date>).$lte = new Date(endDate);
+      if (endDate) {
+        // Day-granularity end dates ("2026-09-23") must include the whole day
+        const end = new Date(endDate);
+        if (end.toString().indexOf(":") === -1) end.setHours(23, 59, 59, 999);
+        (query.date as Record<string, Date>).$lte = end;
+      }
     }
 
     const [transactions, total] = await Promise.all([
       Transaction.find(query)
-        .sort({ date: -1 })
+        .sort({ date: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .populate("categoryId", "name color icon")

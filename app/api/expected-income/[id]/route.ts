@@ -19,34 +19,56 @@ export async function PATCH(
     await connectToDatabase();
 
     if (body.status === "received") {
-      const expected = await ExpectedIncome.findOne({ _id: id, userId });
+      // Atomically claim the pending → received transition so a double tap
+      // (or a second device) can never process the same income twice.
+      const expected = await ExpectedIncome.findOneAndUpdate(
+        { _id: id, userId, status: "pending" },
+        { $set: { status: "received" } },
+        { new: true }
+      );
       if (!expected) {
+        const existing = await ExpectedIncome.findOne({ _id: id, userId });
+        if (existing && existing.status === "received") {
+          return NextResponse.json(
+            { success: false, error: "This income has already been marked as received." },
+            { status: 409 }
+          );
+        }
         return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
       }
 
       const accountId = body.accountId;
       if (!accountId) {
+        // Roll the claim back so the user can retry with an account.
+        expected.status = "pending";
+        await expected.save();
         return NextResponse.json({ success: false, error: "Choose the account where this income was received" }, { status: 400 });
       }
 
       const account = await Account.findOne({ _id: accountId, userId });
       const category = await Category.findOne({ userId, type: "income" }).sort({ createdAt: 1 });
       if (!account || !category) {
+        expected.status = "pending";
+        await expected.save();
         return NextResponse.json({ success: false, error: "A valid account and income category are required" }, { status: 400 });
       }
 
-      await Transaction.create({
-        userId,
-        type: "income",
-        amount: expected.amount,
-        accountId,
-        categoryId: category._id,
-        description: `Expected income: ${expected.source}`,
-        date: new Date(),
-      });
-
-      expected.status = "received";
-      await expected.save();
+      try {
+        await Transaction.create({
+          userId,
+          type: "income",
+          amount: expected.amount,
+          accountId,
+          categoryId: category._id,
+          description: `Expected income: ${expected.source}`,
+          date: new Date(),
+        });
+      } catch (transactionError) {
+        // Never leave the record claimed without the money landing.
+        expected.status = "pending";
+        await expected.save();
+        throw transactionError;
+      }
 
       return NextResponse.json({ success: true, data: { expectedIncome: expected } });
     }

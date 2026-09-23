@@ -138,9 +138,14 @@ function SidebarContent({ onClose, profile }: SidebarContentProps & { profile?: 
 
       <Separator className="" />
 
-      {/* User */}
-      <div className="px-4 py-4">
-        <div className="flex items-center gap-3">
+      {/* User — sidebar profile opens Settings (no redundant profile page) */}
+      <div className="px-3 pb-4">
+        <Link
+          href="/dashboard/settings"
+          onClick={onClose}
+          className="flex items-center gap-3 rounded-lg px-1 py-2 transition-colors hover:bg-sidebar-accent/50"
+          aria-label="Profile and settings"
+        >
           <Avatar className="h-9 w-9">
             {profile?.profileImage ? (
               <AvatarImage src={profile.profileImage} alt={profile.name} />
@@ -158,7 +163,8 @@ function SidebarContent({ onClose, profile }: SidebarContentProps & { profile?: 
               {profile?.email || "user@coffers.app"}
             </p>
           </div>
-        </div>
+          <Settings className="h-4 w-4 shrink-0 text-sidebar-foreground/50" />
+        </Link>
       </div>
     </div>
   );

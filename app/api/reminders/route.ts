@@ -22,10 +22,16 @@ export async function GET(request: NextRequest) {
       query.isCompleted = false;
     }
 
-    const reminders = await Reminder.find(query)
+    const raw = await Reminder.find(query)
       .populate("categoryId", "name color icon")
-      .sort({ dueDate: 1 })
+      .sort({ createdAt: -1 })
       .lean();
+
+    // Most recent → oldest; legacy docs predate the status field
+    const reminders = raw.map((reminder) => ({
+      ...reminder,
+      status: reminder.status || (reminder.isCompleted ? "closed" : "active"),
+    }));
 
     return NextResponse.json({ success: true, data: { reminders } });
   } catch (error) {

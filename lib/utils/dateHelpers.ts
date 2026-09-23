@@ -32,6 +32,29 @@ export function formatDate(
 }
 
 /**
+ * Human-friendly day label for list records:
+ * "Today", "Yesterday", "Sep 20" (this year) or "Sep 20, 2025".
+ */
+export function humanDayLabel(date: Date | string): string {
+  const d = new Date(date);
+  const now = new Date();
+  const key = (x: Date) =>
+    `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`;
+
+  if (key(d) === key(now)) return "Today";
+
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (key(d) === key(yesterday)) return "Yesterday";
+
+  return d.toLocaleDateString("en-ZM", {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+}
+
+/**
  * Format time for display
  */
 export function formatTime(date: Date | string): string {

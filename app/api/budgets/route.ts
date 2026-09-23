@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db/connect";
-import { Budget, Transaction } from "@/lib/models";
+import { Budget, Transaction, Account } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
 
-// GET /api/budgets — list budgets with spending progress
+// GET /api/budgets — list budgets with spending progress (newest first)
 export async function GET(request: NextRequest) {
   const userId = getUserIdFromRequest(request);
   if (!userId) {
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
 
     const budgets = await Budget.find({ userId })
       .populate("categoryId", "name color icon")
+      .populate("accountId", "name type")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -29,8 +30,8 @@ export async function GET(request: NextRequest) {
         const markedTotal = markedItems.reduce((s, it) => s + it.price, 0);
         const status = budget.status || "active";
 
-        // Legacy category-limit budgets: spending progress
-        if (!budget.amount) {
+        // Shopping-list budgets without a legacy category limit
+        if (!budget.amount || (!budget.categoryId && items.length > 0)) {
           return {
             ...budget,
             status,
@@ -38,12 +39,18 @@ export async function GET(request: NextRequest) {
             itemsTotal,
             markedCount: markedItems.length,
             markedTotal,
-            spentAmount: 0,
-            percentage: 0,
-            remaining: budget.amount || 0,
+            spentAmount: markedTotal,
+            percentage:
+              budget.amount && itemsTotal
+                ? Math.min((markedTotal / budget.amount) * 100, 100)
+                : 0,
+            remaining: budget.amount
+              ? Math.max(budget.amount - markedTotal, 0)
+              : 0,
           };
         }
 
+        // Legacy category-limit budgets: spending progress
         // Determine date range based on period
         let startDate = new Date(budget.startDate);
         if (budget.period === "daily") {
@@ -110,7 +117,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { name, categoryId, amount, period, startDate, items } = body;
+    const { name, categoryId, amount, period, startDate, items, accountId } = body;
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -124,6 +131,17 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Amount and period are required for category budgets" },
         { status: 400 }
       );
+    }
+
+    // Payment method must belong to the user — it is what gets deducted on close
+    if (accountId) {
+      const owned = await Account.countDocuments({ userId, _id: accountId });
+      if (!owned) {
+        return NextResponse.json(
+          { success: false, error: "Choose a valid payment account" },
+          { status: 400 }
+        );
+      }
     }
 
     // Optional starting items: [{ name, price }]
@@ -146,6 +164,7 @@ export async function POST(request: NextRequest) {
       amount: amount ? Number(amount) : undefined,
       period: period || undefined,
       startDate: startDate ? new Date(startDate) : new Date(),
+      accountId: accountId || undefined,
       items: cleanItems,
       status: "active",
     });

@@ -75,15 +75,22 @@ export default function TopBar({ onMenuClick, profile }: TopBarProps) {
             <span className="sr-only">Notifications</span>
           </Link>
 
-          <Avatar className="h-8 w-8">
-            {profile?.profileImage ? (
-              <AvatarImage src={profile.profileImage} alt={profile.name} />
-            ) : (
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                {profile?.name?.slice(0, 2).toUpperCase() || "CU"}
-              </AvatarFallback>
-            )}
-          </Avatar>
+          {/* Profile opens Settings — no separate profile page */}
+          <Link
+            href="/dashboard/settings"
+            aria-label="Profile and settings"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Avatar className="h-8 w-8">
+              {profile?.profileImage ? (
+                <AvatarImage src={profile.profileImage} alt={profile.name} />
+              ) : (
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                  {profile?.name?.slice(0, 2).toUpperCase() || "CU"}
+                </AvatarFallback>
+              )}
+            </Avatar>
+          </Link>
         </div>
       </div>
     </header>

@@ -7,8 +7,10 @@ import { getUserIdFromRequest } from "@/lib/auth/helpers";
 /*
  * PATCH /api/budgets/[id] — budget detail actions
  *   { action: "add_items", items: [{ name, price }] }
- *   { action: "toggle_item", itemId, bought, accountId }
- *   { action: "close" }
+ *   { action: "toggle_item", itemId, bought }
+ *   { action: "close", accountId? }
+ *
+ * DELETE /api/budgets/[id] — delete a budget that is already closed
  */
 export async function PATCH(
   request: NextRequest,
@@ -54,11 +56,14 @@ export async function PATCH(
       return NextResponse.json({ success: true, data: { budget } });
     }
 
-    // ── Mark item bought / not bought ───────────────────────
+    // ── Tick / untick an item (no money moves yet) ──────────
     if (action === "toggle_item") {
       const { itemId, bought } = body;
       if (!Types.ObjectId.isValid(itemId)) {
         return NextResponse.json({ success: false, error: "Invalid item id" }, { status: 400 });
+      }
+      if (budget.status === "closed") {
+        return NextResponse.json({ success: false, error: "This budget is already closed" }, { status: 400 });
       }
       const item = budget.items.find((i) => String(i._id) === String(itemId));
       if (!item) {
@@ -68,32 +73,9 @@ export async function PATCH(
         return NextResponse.json({ success: true, data: { item, budget } });
       }
 
-      let categoryId = budget.categoryId || null;
-      if (!categoryId) {
-        const category = await Category.findOne({ userId, type: "expense" }).sort({ createdAt: 1 }).lean();
-        categoryId = category?._id || null;
-      }
-      if (!categoryId) {
-        return NextResponse.json({ success: false, error: "Create an expense category before marking an item bought" }, { status: 400 });
-      }
-
-      if (bought) {
-        if (!body.accountId) {
-          return NextResponse.json({ success: false, error: "Choose the account used to pay for this item" }, { status: 400 });
-        }
-        const account = await Account.findOne({ _id: body.accountId, userId }).lean();
-        if (!account) return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
-        const transaction = await Transaction.create({
-          userId,
-          type: "expense",
-          amount: item.price,
-          categoryId,
-          accountId: account._id,
-          description: `Budget item: ${item.name}`,
-          date: new Date(),
-        });
-        item.transactionId = transaction._id;
-      } else if (item.transactionId) {
+      // Legacy budgets recorded expenses at tick time — unticking still
+      // reverses that old transaction so balances stay correct.
+      if (!bought && item.transactionId) {
         await Transaction.deleteOne({ _id: item.transactionId, userId });
         item.transactionId = undefined;
       }
@@ -104,6 +86,9 @@ export async function PATCH(
     }
 
     // ── Close the budget ────────────────────────────────────
+    // Only checked items count: their total is deducted from the budget's
+    // payment account, then the budget is closed. Transactions are created
+    // first and rolled back on any failure so account + budget never drift.
     if (action === "close") {
       if (budget.status === "closed") {
         return NextResponse.json(
@@ -112,13 +97,82 @@ export async function PATCH(
         );
       }
 
-      budget.status = "closed";
-      budget.closedAt = new Date();
-      await budget.save();
+      // Only checked items count as spending; items recorded by the old
+      // tick-time flow already sit in the ledger and are not charged twice.
+      const checked = budget.items.filter((i) => i.bought && !i.transactionId);
+      const checkedTotal = checked.reduce((sum, i) => sum + i.price, 0);
+
+      const paymentAccountId = body.accountId || budget.accountId;
+      const createdTransactionIds: string[] = [];
+
+      try {
+        if (checked.length > 0) {
+          if (!paymentAccountId) {
+            return NextResponse.json(
+              { success: false, error: "Choose the payment account before closing" },
+              { status: 400 }
+            );
+          }
+          const account = await Account.findOne({ _id: paymentAccountId, userId }).lean();
+          if (!account) {
+            return NextResponse.json({ success: false, error: "Payment account not found" }, { status: 404 });
+          }
+
+          let categoryId = budget.categoryId || null;
+          if (!categoryId) {
+            const category = await Category.findOne({ userId, type: "expense" })
+              .sort({ createdAt: 1 })
+              .lean();
+            categoryId = category?._id || null;
+          }
+          if (!categoryId) {
+            return NextResponse.json(
+              { success: false, error: "Create an expense category before closing this budget" },
+              { status: 400 }
+            );
+          }
+
+          for (const item of checked) {
+            const transaction = await Transaction.create({
+              userId,
+              type: "expense",
+              amount: item.price,
+              categoryId,
+              accountId: paymentAccountId,
+              description: `Budget item: ${item.name}`,
+              date: new Date(),
+            });
+            createdTransactionIds.push(String(transaction._id));
+            item.transactionId = transaction._id;
+          }
+
+          budget.accountId = paymentAccountId;
+        }
+
+        budget.status = "closed";
+        budget.closedAt = new Date();
+        await budget.save();
+      } catch (closeError) {
+        // Compensate: undo anything we already wrote before reporting failure
+        if (createdTransactionIds.length > 0) {
+          await Transaction.deleteMany({
+            _id: { $in: createdTransactionIds },
+            userId,
+          });
+          checked.forEach((item) => {
+            item.transactionId = undefined;
+          });
+        }
+        throw closeError;
+      }
 
       return NextResponse.json({
         success: true,
-        data: { budget, deducted: 0, deductedFrom: null },
+        data: {
+          budget,
+          deducted: checkedTotal,
+          deductedFrom: checked.length > 0 ? paymentAccountId : null,
+        },
       });
     }
 
@@ -127,6 +181,42 @@ export async function PATCH(
     console.error("Budget update error:", error);
     return NextResponse.json(
       { success: false, error: "Failed to update budget" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const userId = getUserIdFromRequest(request);
+  if (!userId) {
+    return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { id } = await params;
+    await connectToDatabase();
+
+    const budget = await Budget.findOne({ _id: id, userId });
+    if (!budget) {
+      return NextResponse.json({ success: false, error: "Budget not found" }, { status: 404 });
+    }
+    if (budget.status !== "closed") {
+      return NextResponse.json(
+        { success: false, error: "Only closed budgets can be deleted" },
+        { status: 400 }
+      );
+    }
+
+    // Recorded expense transactions stay — they already happened.
+    await budget.deleteOne();
+    return NextResponse.json({ success: true, data: { message: "Budget deleted" } });
+  } catch (error) {
+    console.error("Budget delete error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to delete budget" },
       { status: 500 }
     );
   }

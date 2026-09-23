@@ -8,6 +8,8 @@ export interface IReminder extends Document {
   categoryId?: mongoose.Types.ObjectId;
   recurrence: "none" | "daily" | "weekly" | "monthly" | "yearly";
   isCompleted: boolean;
+  /* Once-off reminders become "closed" after they are completed */
+  status: "active" | "closed";
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,6 +50,11 @@ const ReminderSchema = new Schema<IReminder>(
     isCompleted: {
       type: Boolean,
       default: false,
+    },
+    status: {
+      type: String,
+      enum: ["active", "closed"],
+      default: "active",
     },
   },
   {

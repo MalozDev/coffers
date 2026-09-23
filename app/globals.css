@@ -172,3 +172,33 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* ── Long-press protection ──────────────────────────────────────────────
+ * Ordinary UI chrome (buttons, links, nav, cards, list rows) must not be
+ * text-selectable on a long press — it triggers the browser's selection
+ * handles / contextual text-search on mobile and makes taps feel broken.
+ * Anything a user legitimately copies (inputs, textareas, editable text
+ * and elements explicitly marked .selectable) stays selectable below. */
+button,
+a,
+nav,
+[role="button"],
+[role="checkbox"],
+[role="menuitem"],
+[role="tab"],
+[role="link"],
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable="true"],
+.selectable,
+.selectable * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}

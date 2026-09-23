@@ -22,6 +22,8 @@ export interface IBudget extends Document {
   items: IBudgetItem[];
   status: "active" | "closed";
   closedAt?: Date;
+  /* Payment/account method the checked items are paid from on close */
+  accountId?: mongoose.Types.ObjectId;
   createdAt: Date;
 }
 
@@ -83,6 +85,13 @@ const BudgetSchema = new Schema<IBudget>(
     },
     endDate: {
       type: Date,
+    },
+    /* Payment method chosen when the budget is initiated — the account
+       the checked items are deducted from when the budget closes. */
+    accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      required: false,
     },
     /* Shopping-list budget */
     items: { type: [BudgetItemSchema], default: [] },

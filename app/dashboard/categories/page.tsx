@@ -5,7 +5,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Plus, X, Tag } from "lucide-react";
 
 interface Category { _id: string; name: string; type: string; color: string; icon?: string; isDefault: boolean }
@@ -43,7 +49,6 @@ export default function CategoriesPage() {
     fetchCategories();
     setSaving(false);
   };
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -51,9 +56,8 @@ export default function CategoriesPage() {
           <h1 className="text-xl font-bold text-foreground">Categories</h1>
           <p className="text-muted-foreground text-sm mt-0.5">Organize your transactions</p>
         </div>
-        <Button size="sm" onClick={() => setShowForm(!showForm)}>
-          {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {showForm ? "Cancel" : "Add"}
+        <Button size="sm" onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4" /> Add
         </Button>
       </div>
 
@@ -63,12 +67,17 @@ export default function CategoriesPage() {
         <Button variant={tab === "income" ? "default" : "secondary"} size="sm" onClick={() => setTab("income")} className="flex-1 h-9">Income</Button>
       </div>
 
-      {showForm && (
-        <Card><CardContent>
+      {/* Add category modal */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add category</DialogTitle>
+            <DialogDescription>Create a category for your {tab} transactions.</DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-sm">Category Name</Label>
-              <Input placeholder="e.g. Groceries" value={name} onChange={(e) => setName(e.target.value)} className="h-11" required />
+              <Input placeholder="e.g. Groceries" value={name} onChange={(e) => setName(e.target.value)} className="h-11" required autoFocus />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -83,10 +92,13 @@ export default function CategoriesPage() {
                 <Input placeholder="🍔" value={icon} onChange={(e) => setIcon(e.target.value)} className="h-10 text-lg" />
               </div>
             </div>
-            <Button type="submit" className="w-full h-12" disabled={saving}>{saving ? "Adding..." : "Add Category"}</Button>
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1 h-11" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1 h-11" disabled={saving}>{saving ? "Adding..." : "Add Category"}</Button>
+            </div>
           </form>
-        </CardContent></Card>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="grid grid-cols-2 gap-2">{[1, 2, 3, 4].map((i) => <div key={i} className="h-14 bg-muted rounded-xl animate-pulse" />)}</div>

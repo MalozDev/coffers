@@ -15,6 +15,15 @@ export async function GET(request: NextRequest) {
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Aggregation pipelines do not cast strings — userId must be an ObjectId
@@ -28,6 +37,7 @@ export async function GET(request: NextRequest) {
       monthAgg,
       totalAgg,
       upcomingReminders,
+      upcomingCount,
       recentTransactions,
       expectedIncome,
       activeGoals,
@@ -79,6 +89,14 @@ export async function GET(request: NextRequest) {
         .sort({ dueDate: 1 })
         .limit(5)
         .lean(),
+      // "Due" = a bill whose date has been reached but is not paid yet
+      // (overdue or due today). Closing/completing a reminder drops it out of
+      // this count immediately.
+      Reminder.countDocuments({
+        userId,
+        isCompleted: false,
+        dueDate: { $lte: endOfToday },
+      }),
       // Recent transactions (last 5)
       Transaction.find({ userId })
         .sort({ date: -1 })
@@ -163,6 +181,7 @@ export async function GET(request: NextRequest) {
         },
         recentTransactions,
         upcomingReminders,
+        upcomingCount,
         expectedIncome,
         activeGoals,
         insights,

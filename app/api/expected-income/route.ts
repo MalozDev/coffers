@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
   try {
     await connectToDatabase();
     const expected = await ExpectedIncome.find({ userId })
-      .sort({ expectedDate: 1 })
+      .sort({ createdAt: -1 })
       .lean();
 
     const totalPending = expected
