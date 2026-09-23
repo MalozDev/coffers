@@ -32,15 +32,30 @@ export default function NotificationsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { loadNotifications(); }, []);
+  const notifyCountChanged = () => window.dispatchEvent(new Event("coffers:notifications-updated"));
+
+  useEffect(() => {
+    const openNotifications = async () => {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ all: true }),
+      });
+      notifyCountChanged();
+      await loadNotifications();
+    };
+    openNotifications().catch(() => loadNotifications());
+  }, []);
 
   const markRead = async (id: string) => {
     await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    notifyCountChanged();
     await loadNotifications();
   };
 
   const markAllRead = async () => {
     await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ all: true }) });
+    notifyCountChanged();
     await loadNotifications();
   };
 

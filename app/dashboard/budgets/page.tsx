@@ -678,6 +678,7 @@ export default function BudgetsPage() {
                           ? `Closed ${fmtTs(b.closedAt)}`
                           : "No items yet"}
                       </p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">Created {fmtTs(b.createdAt)}</p>
                     </div>
                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   </CardContent>

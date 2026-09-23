@@ -121,6 +121,39 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const savingsAccountIds = new Set(savingsAccounts.map((account) => String(account._id)));
+    const savingsPeriodTransactions = savingsAccountIds.size > 0
+      ? await Transaction.find({
+          userId: userIdOid,
+          date: { $gte: prevStart, $lte: end },
+          $or: [
+            { accountId: { $in: savingsAccounts.map((account) => account._id) } },
+            { toAccountId: { $in: savingsAccounts.map((account) => account._id) } },
+            { "payments.accountId": { $in: savingsAccounts.map((account) => account._id) } },
+          ],
+        }).select("type amount accountId toAccountId payments date").lean()
+      : [];
+
+    const savingsMovementFor = (from: Date, to: Date) => savingsPeriodTransactions.reduce((total, transaction) => {
+      const transactionDate = new Date(transaction.date);
+      if (transactionDate < from || transactionDate > to) return total;
+
+      const fromSavings = transaction.accountId && savingsAccountIds.has(String(transaction.accountId));
+      const toSavings = transaction.toAccountId && savingsAccountIds.has(String(transaction.toAccountId));
+      if (transaction.type === "income" && fromSavings) return total + transaction.amount;
+      if (transaction.type === "expense") {
+        if (transaction.payments?.length) {
+          return total - transaction.payments
+            .filter((payment) => savingsAccountIds.has(String(payment.accountId)))
+            .reduce((sum, payment) => sum + payment.amount, 0);
+        }
+        return fromSavings ? total - transaction.amount : total;
+      }
+      if (transaction.type === "transfer" && fromSavings && !toSavings) return total - transaction.amount;
+      if (transaction.type === "transfer" && toSavings && !fromSavings) return total + transaction.amount;
+      return total;
+    }, 0);
+
     // Current period aggregation
     const currentAgg = await Transaction.aggregate([
       {
@@ -210,8 +243,8 @@ export async function GET(request: NextRequest) {
     const expenses = current.expense || 0;
     const prevIncome = prev.income || 0;
     const prevExpenses = prev.expense || 0;
-    const savings = income - expenses;
-    const prevSavings = prevIncome - prevExpenses;
+    const savings = savingsMovementFor(start, end);
+    const prevSavings = savingsMovementFor(prevStart, prevEnd);
 
     const incomeChange = prevIncome > 0 ? ((income - prevIncome) / prevIncome) * 100 : 0;
     const expenseChange = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0;

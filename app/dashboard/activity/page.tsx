@@ -12,11 +12,19 @@ interface Transaction {
   amount: number;
   description: string;
   date: string;
+  createdAt?: string;
   categoryId?: { name: string; color: string; icon?: string };
   accountId?: { name: string };
 }
 
 function formatK(n: number) { return `K${n.toLocaleString()}`; }
+
+function formatLoggedTime(value: string) {
+  return new Date(value).toLocaleTimeString("en-ZM", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 function groupByDate(transactions: Transaction[]) {
   const groups: Record<string, Transaction[]> = {};
@@ -118,7 +126,7 @@ export default function ActivityPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{tx.description}</p>
-                        <p className="text-xs text-muted-foreground">{tx.categoryId?.name || tx.type} · {tx.accountId?.name}</p>
+                        <p className="text-xs text-muted-foreground">{tx.categoryId?.name || tx.type} · {tx.accountId?.name} · {formatLoggedTime(tx.createdAt || tx.date)}</p>
                       </div>
                       <span className={`text-sm font-mono font-semibold shrink-0 ${tx.type === "income" ? "text-green-600" : "text-red-500"}`}>
                         {tx.type === "income" ? "+" : "−"} {formatK(tx.amount)}

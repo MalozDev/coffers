@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast-provider";
 
 interface Category {
   _id: string;
@@ -55,6 +56,7 @@ export default function QuickEntryModal({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // Load options + reset form each time the modal opens
   useEffect(() => {
@@ -103,16 +105,25 @@ export default function QuickEntryModal({
       });
       const data = await res.json();
       if (data.success) {
+        if (data.convertedToExpected) {
+          showToast("success", "Future income added to Expected Income. Mark it received when the money arrives.");
+        } else {
+          showToast("success", isIncome ? "Income saved successfully." : "Expense saved successfully.");
+        }
         onSaved();
         onOpenChange(false);
       } else {
         const details = data.details
           ? Object.values(data.details).flat().join(" ")
           : "";
-        setError(details || data.error || "Failed to save. Please try again.");
+        const message = details || data.error || "Failed to save. Please try again.";
+        setError(message);
+        showToast("error", message);
       }
     } catch {
-      setError("Network error. Please check your connection and try again.");
+      const message = "Network error. Please check your connection and try again.";
+      setError(message);
+      showToast("error", message);
     }
     setSaving(false);
   };

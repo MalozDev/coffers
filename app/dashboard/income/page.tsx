@@ -30,6 +30,7 @@ interface Transaction {
   amount: number;
   description: string;
   date: string;
+    createdAt?: string;
   categoryId?: { name: string; color: string; icon?: string };
   accountId?: { name: string };
   toAccountId?: { name: string };
@@ -57,6 +58,10 @@ function dateLabel(value: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+function loggedTime(value: string) {
+  return new Date(value).toLocaleTimeString("en-ZM", { hour: "2-digit", minute: "2-digit" });
 }
 
 export default function IncomePage() {
@@ -97,7 +102,7 @@ export default function IncomePage() {
   const [transferSaving, setTransferSaving] = useState(false);
   const { showToast } = useToast();
 
-  const movementAccounts = accounts.filter((account) => ["cash", "mobile_money", "bank"].includes(account.type));
+  const movementAccounts = accounts.filter((account) => ["cash", "mobile_money", "bank", "savings"].includes(account.type));
 
   useEffect(() => {
     Promise.all([
@@ -111,7 +116,7 @@ export default function IncomePage() {
       if (accs.success) {
         setAccounts(accs.data.accounts);
         if (accs.data.accounts[0]) setAccountId(accs.data.accounts[0]._id);
-        const movementAccountIds = accs.data.accounts.filter((account: Account) => ["cash", "mobile_money", "bank"].includes(account.type)).map((account: Account) => account._id);
+        const movementAccountIds = accs.data.accounts.filter((account: Account) => ["cash", "mobile_money", "bank", "savings"].includes(account.type)).map((account: Account) => account._id);
         if (movementAccountIds[0]) setTransferFromAccount(movementAccountIds[0]);
         if (movementAccountIds[1]) setTransferToAccount(movementAccountIds[1]);
       }
@@ -225,11 +230,18 @@ export default function IncomePage() {
         setAmount("");
         setDescription("");
         setNote("");
-        showToast("success", "Income saved successfully.");
+        if (data.convertedToExpected && data.data?.expectedIncome) {
+          setExpectedIncome((current) => [...current, data.data.expectedIncome].sort((a: ExpectedIncome, b: ExpectedIncome) => a.expectedDate.localeCompare(b.expectedDate)));
+          setView("expected");
+          showToast("success", "Future income added to Expected Income. Mark it received when the money arrives.");
+        } else {
+          showToast("success", "Income saved successfully.");
+        }
         window.dispatchEvent(new Event("coffers:data-updated"));
-        // Refresh list
-        const txs = await fetch("/api/transactions?type=income&limit=100").then((r) => r.json());
-        if (txs.success) setTransactions(txs.data.transactions);
+        if (!data.convertedToExpected) {
+          const txs = await fetch("/api/transactions?type=income&limit=100").then((r) => r.json());
+          if (txs.success) setTransactions(txs.data.transactions);
+        }
         const accs = await fetch("/api/accounts").then((r) => r.json());
         if (accs.success) setAccounts(accs.data.accounts);
       } else {
@@ -515,7 +527,7 @@ export default function IncomePage() {
         <Card>
           <div className="border-b border-border bg-muted/30 px-4 py-2"><p className="text-xs font-semibold text-muted-foreground">Recent account movements</p></div>
           <div className="divide-y divide-border">{transfers.filter((transfer) => inDateRange(transfer.date)).map((transfer) => {
-            return <div key={transfer._id} className="flex items-center gap-3 px-4 py-3"><div className="p-2 rounded-lg bg-blue-50 shrink-0"><ArrowRightLeft className="h-4 w-4 text-blue-600" /></div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-foreground truncate">{transfer.description}</p><p className="text-xs text-muted-foreground">{transfer.accountId?.name || "Account"} to {transfer.toAccountId?.name || "Account"}</p></div><span className="text-sm font-mono font-semibold text-blue-600 shrink-0">{formatK(transfer.amount)}</span></div>;
+            return <div key={transfer._id} className="flex items-center gap-3 px-4 py-3"><div className="p-2 rounded-lg bg-blue-50 shrink-0"><ArrowRightLeft className="h-4 w-4 text-blue-600" /></div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-foreground truncate">{transfer.description}</p><p className="text-xs text-muted-foreground">{transfer.accountId?.name || "Account"} to {transfer.toAccountId?.name || "Account"} · {loggedTime(transfer.createdAt || transfer.date)}</p></div><span className="text-sm font-mono font-semibold text-blue-600 shrink-0">{formatK(transfer.amount)}</span></div>;
           })}</div>
         </Card>
       )}
@@ -543,7 +555,7 @@ export default function IncomePage() {
             <div className="divide-y divide-border">{dayTransactions.map((tx) => (
               <div key={tx._id} className="flex items-center gap-3 px-4 py-3">
                 <div className="p-2 rounded-lg bg-green-50 shrink-0"><ArrowDownCircle className="h-4 w-4 text-green-600" /></div>
-                <div className="flex-1 min-w-0"><p className="text-sm font-medium text-foreground truncate">{tx.description}</p><p className="text-xs text-muted-foreground">{tx.categoryId?.name || "Income"} · {tx.accountId?.name || "Account"}</p></div>
+                <div className="flex-1 min-w-0"><p className="text-sm font-medium text-foreground truncate">{tx.description}</p><p className="text-xs text-muted-foreground">{tx.categoryId?.name || "Income"} · {tx.accountId?.name || "Account"} · logged {loggedTime(tx.createdAt || tx.date)}</p></div>
                 <span className="text-sm font-mono font-semibold text-green-600 shrink-0">+ {formatK(tx.amount)}</span>
               </div>
             ))}</div>

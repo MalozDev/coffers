@@ -72,6 +72,29 @@ export async function GET(request: NextRequest) {
 
     const total = accountBalances.reduce((s, a) => s + a.balance, 0);
 
+    const balanceByAccountId = new Map(accountBalances.map((account) => [String(account._id), Math.max(account.balance, 0)]));
+    const goals = await Goal.find({ userId }).sort({ createdAt: -1 }).lean();
+    const reconciledGoals = await Promise.all(goals.map(async (goal) => {
+      if (!goal.fundingAccountId) return goal;
+
+      const balance = balanceByAccountId.get(String(goal.fundingAccountId));
+      if (balance === undefined) return goal;
+
+      const status = goal.status === "cancelled" || goal.status === "paused"
+        ? goal.status
+        : balance >= goal.targetAmount ? "completed" : "active";
+
+      if (goal.currentAmount !== balance || goal.status !== status) {
+        return Goal.findOneAndUpdate(
+          { _id: goal._id, userId },
+          { $set: { currentAmount: balance, status } },
+          { new: true }
+        ).lean();
+      }
+
+      return goal;
+    }));
+
     // This month's net movement across savings accounts
     let monthNet = 0;
     for (const t of txs) {
@@ -120,11 +143,9 @@ export async function GET(request: NextRequest) {
       return { label, balance: Math.round(balance) };
     });
 
-    const goals = await Goal.find({ userId }).sort({ createdAt: -1 }).lean();
-
     return NextResponse.json({
       success: true,
-      data: { accounts: accountBalances, total, monthNet, trend, goals },
+      data: { accounts: accountBalances, total, monthNet, trend, goals: reconciledGoals },
     });
   } catch (error) {
     console.error("Savings fetch error:", error);

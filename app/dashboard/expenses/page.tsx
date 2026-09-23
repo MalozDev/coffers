@@ -9,7 +9,7 @@ import { ArrowUpCircle, Plus, X } from "lucide-react";
 
 interface Category { _id: string; name: string; color: string; icon?: string; type: string }
 interface Account { _id: string; name: string; type: string; currentBalance?: number }
-interface Transaction { _id: string; amount: number; description: string; date: string; categoryId?: { name: string; color: string; icon?: string }; accountId?: { name: string } }
+interface Transaction { _id: string; amount: number; description: string; date: string; createdAt?: string; categoryId?: { name: string; color: string; icon?: string }; accountId?: { name: string } }
 
 function formatK(n: number) { return `K${n.toLocaleString()}`; }
 
@@ -222,7 +222,7 @@ export default function ExpensesPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{tx.description}</p>
                   <p className="text-xs text-muted-foreground">
-                    {tx.categoryId?.name} · {new Date(tx.date).toLocaleDateString("en-ZM", { day: "numeric", month: "short" })}
+                    {tx.categoryId?.name} · {new Date(tx.date).toLocaleDateString("en-ZM", { day: "numeric", month: "short" })} · logged {new Date(tx.createdAt || tx.date).toLocaleTimeString("en-ZM", { hour: "2-digit", minute: "2-digit" })}
                   </p>
                 </div>
                 <span className="text-sm font-mono font-semibold text-red-500 shrink-0">

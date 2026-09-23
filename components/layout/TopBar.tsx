@@ -17,12 +17,18 @@ export default function TopBar({ onMenuClick, profile }: TopBarProps) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    fetch("/api/notifications")
-      .then((response) => response.json())
-      .then((result) => {
-        if (result.success) setUnreadCount(result.data.unreadCount);
-      })
-      .catch(() => undefined);
+    const loadUnreadCount = () => {
+      fetch("/api/notifications")
+        .then((response) => response.json())
+        .then((result) => {
+          if (result.success) setUnreadCount(result.data.unreadCount);
+        })
+        .catch(() => undefined);
+    };
+
+    loadUnreadCount();
+    window.addEventListener("coffers:notifications-updated", loadUnreadCount);
+    return () => window.removeEventListener("coffers:notifications-updated", loadUnreadCount);
   }, []);
 
   return (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db/connect";
-import { Transaction, Account } from "@/lib/models";
+import { Transaction, Account, ExpectedIncome } from "@/lib/models";
 import { transactionSchema } from "@/lib/validation/transaction";
 
 // Helper: extract userId from token cookie
@@ -112,6 +112,26 @@ export async function POST(request: NextRequest) {
 
     const { type, amount, categoryId, accountId, toAccountId, description, note, date, payments } =
       result.data;
+
+    // A future-dated income has not arrived yet, so keep it in the expected-income flow.
+    if (type === "income") {
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      if (date > todayEnd) {
+        const expectedIncome = await ExpectedIncome.create({
+          userId,
+          source: description,
+          amount,
+          expectedDate: date,
+          note,
+          status: "pending",
+        });
+        return NextResponse.json(
+          { success: true, data: { expectedIncome }, convertedToExpected: true },
+          { status: 201 }
+        );
+      }
+    }
 
     const normalizedPayments = type === "expense"
       ? (payments?.length ? payments : [{ accountId, amount }])
