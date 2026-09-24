@@ -1,8 +1,17 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+export type TransactionSource =
+  | "manual"
+  | "reminder"
+  | "budget"
+  | "saving"
+  | "expected_income";
+
 export interface ITransaction extends Document {
   userId: mongoose.Types.ObjectId;
   type: "income" | "expense" | "transfer";
+  /* Which feature moved the money — shown as the activity source */
+  source?: TransactionSource;
   amount: number;
   categoryId?: mongoose.Types.ObjectId;
   accountId: mongoose.Types.ObjectId;
@@ -29,6 +38,14 @@ const TransactionSchema = new Schema<ITransaction>(
       type: String,
       enum: ["income", "expense", "transfer"],
       required: [true, "Transaction type is required"],
+    },
+    /* What touched the balance. Legacy documents predate the field, so it
+       defaults to "manual" and the API infers older rows from their
+       description. */
+    source: {
+      type: String,
+      enum: ["manual", "reminder", "budget", "saving", "expected_income"],
+      default: "manual",
     },
     amount: {
       type: Number,

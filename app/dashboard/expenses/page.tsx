@@ -16,6 +16,7 @@ import { FilterGroup } from "@/components/ui/filter-group";
 import {
   DateFilterGroup,
   boundsFor,
+  dateKey,
   humanDayLabel,
   isWithinBounds,
   type DateFilterValue,
@@ -126,6 +127,28 @@ export default function ExpensesPage() {
         ),
     [transactions, bounds, categoryFilter]
   );
+
+  // Group by calendar day — newest day first — so every day (today and past
+  // days) shows its own spending total at a glance.
+  const groupedTransactions = useMemo(() => {
+    const groups = new Map<string, Transaction[]>();
+    visibleTransactions.forEach((tx) => {
+      const key = dateKey(tx.date);
+      groups.set(key, [...(groups.get(key) || []), tx]);
+    });
+    return Array.from(groups.entries())
+      .map(
+        ([day, rows]): [string, Transaction[]] => [
+          day,
+          rows.sort(
+            (a, b) =>
+              new Date(b.createdAt || b.date).getTime() -
+              new Date(a.createdAt || a.date).getTime()
+          ),
+        ]
+      )
+      .sort(([a], [b]) => b.localeCompare(a));
+  }, [visibleTransactions]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -411,33 +434,53 @@ export default function ExpensesPage() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <div className="divide-y divide-border">
-            {visibleTransactions.map((tx) => (
-              <div key={tx._id} className="flex items-center gap-3 px-4 py-3">
-                <div className="p-2 rounded-lg bg-red-50 shrink-0">
-                  <ArrowUpCircle className="h-4 w-4 text-red-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {tx.description}
+        <div className="space-y-3">
+          {groupedTransactions.map(([day, dayTransactions]) => {
+            const dayTotal = dayTransactions.reduce(
+              (sum, tx) => sum + tx.amount,
+              0
+            );
+            return (
+              <Card key={day}>
+                <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2">
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {humanDayLabel(`${day}T12:00:00`)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
-                    {tx.categoryId?.name} ·{" "}
-                    {humanDayLabel(tx.date)} · logged{" "}
-                    {new Date(tx.createdAt || tx.date).toLocaleTimeString("en-ZM", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                  <p className="text-xs font-mono font-semibold text-foreground">
+                    {dayTransactions.length}{" "}
+                    {dayTransactions.length === 1 ? "entry" : "entries"} · total{" "}
+                    {formatK(dayTotal)}
                   </p>
                 </div>
-                <span className="text-sm font-mono font-semibold text-red-500 shrink-0">
-                  − {formatK(tx.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+                <div className="divide-y divide-border">
+                  {dayTransactions.map((tx) => (
+                    <div key={tx._id} className="flex items-center gap-3 px-4 py-3">
+                      <div className="p-2 rounded-lg bg-red-50 shrink-0">
+                        <ArrowUpCircle className="h-4 w-4 text-red-500" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {tx.description}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {tx.categoryId?.name} ·{" "}
+                          {humanDayLabel(tx.date)} · logged{" "}
+                          {new Date(tx.createdAt || tx.date).toLocaleTimeString("en-ZM", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      <span className="text-sm font-mono font-semibold text-red-500 shrink-0">
+                        − {formatK(tx.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );

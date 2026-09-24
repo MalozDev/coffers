@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db/connect";
 import { Reminder, Account, Category, Transaction } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
+import { getAccountBalance } from "@/lib/utils/balances";
 
 /*
  * PATCH /api/reminders/[id]
@@ -47,6 +48,20 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "Account not found" }, { status: 404 });
       }
 
+      // Never overdraw: the account must actually cover this reminder.
+      const available = (await getAccountBalance(userId, account._id)) ?? 0;
+      if (reminder.amount > available) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Not enough balance in ${account.name}. Available: K${Math.max(available, 0).toLocaleString()}, but this reminder needs K${reminder.amount.toLocaleString()}. Choose another account or add funds first.`,
+            availableBalance: available,
+            required: reminder.amount,
+          },
+          { status: 409 }
+        );
+      }
+
       let categoryId = reminder.categoryId || null;
       if (!categoryId) {
         const category = await Category.findOne({ userId, type: "expense" })
@@ -67,6 +82,7 @@ export async function PATCH(
         const transaction = await Transaction.create({
           userId,
           type: "expense",
+          source: "reminder",
           amount: reminder.amount,
           categoryId,
           accountId: account._id,

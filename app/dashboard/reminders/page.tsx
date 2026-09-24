@@ -98,17 +98,17 @@ export default function RemindersPage() {
     });
   };
 
-  useEffect(() => {
-    fetchReminders();
+  const loadAccounts = () =>
     fetch("/api/accounts")
       .then((r) => r.json())
       .then((res) => {
-        if (res.success) {
-          setAccounts(res.data.accounts);
-          if (res.data.accounts[0]) setPayFrom(res.data.accounts[0]._id);
-        }
+        if (res.success) setAccounts(res.data.accounts);
       })
       .catch(() => undefined);
+
+  useEffect(() => {
+    fetchReminders();
+    loadAccounts();
   }, []);
 
   const bounds = useMemo(
@@ -196,6 +196,12 @@ export default function RemindersPage() {
       }
       setPending(null);
       fetchReminders();
+      // Balances changed — refresh them so the next pick is accurate
+      loadAccounts();
+      showToast(
+        "success",
+        `${pending.title} resolved — ${formatK(pending.amount)} deducted from ${data.data?.deductedFrom || "the selected account"}.`
+      );
       window.dispatchEvent(new Event("coffers:data-updated"));
     } catch {
       setError("Network error. Please try again.");
@@ -234,6 +240,11 @@ export default function RemindersPage() {
   };
 
   const pendingName = accounts.find((a) => a._id === payFrom)?.name || "";
+  const payAccount = accounts.find((a) => a._id === payFrom);
+  const payShort =
+    !!pending && !!payAccount && (payAccount.currentBalance || 0) < pending.amount;
+  const anyAccountCovers =
+    !!pending && accounts.some((a) => (a.currentBalance || 0) >= pending.amount);
 
   return (
     <div className="space-y-5">
@@ -319,6 +330,11 @@ export default function RemindersPage() {
                           onClick={() => {
                             setError(null);
                             setPending(r);
+                            // Preselect an account that can actually cover it
+                            const viable = accounts.find(
+                              (account) => (account.currentBalance || 0) >= r.amount
+                            );
+                            setPayFrom(viable?._id || "");
                           }}
                         >
                           <div className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
@@ -529,13 +545,36 @@ export default function RemindersPage() {
                 className="w-full h-10 rounded-xl border border-input bg-white px-3 text-sm"
               >
                 <option value="">Choose account</option>
-                {accounts.map((account) => (
-                  <option key={account._id} value={account._id}>
-                    {account.name} · {formatK(account.currentBalance || 0)}
-                  </option>
-                ))}
+                {accounts.map((account) => {
+                  const short =
+                    !!pending && (account.currentBalance || 0) < pending.amount;
+                  return (
+                    <option key={account._id} value={account._id} disabled={short}>
+                      {account.name} · {formatK(account.currentBalance || 0)}
+                      {short ? " — not enough" : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
+
+            {error && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {error}
+              </p>
+            )}
+            {payShort && payAccount && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                {payAccount.name} only has {formatK(payAccount.currentBalance || 0)} —
+                choose another account or add funds first.
+              </p>
+            )}
+            {pending && accounts.length > 0 && !anyAccountCovers && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                No account holds {formatK(pending.amount)} yet. Add funds, or record
+                this as an expense instead.
+              </p>
+            )}
 
             <div className="flex gap-2 pt-1">
               <Button
@@ -548,7 +587,7 @@ export default function RemindersPage() {
               <Button
                 className="flex-1 h-11"
                 onClick={confirmComplete}
-                disabled={confirming || !payFrom}
+                disabled={confirming || !payFrom || payShort}
               >
                 {confirming ? "Confirming..." : "Confirm"}
               </Button>

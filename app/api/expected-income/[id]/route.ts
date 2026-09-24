@@ -57,6 +57,7 @@ export async function PATCH(
         await Transaction.create({
           userId,
           type: "income",
+          source: "expected_income",
           amount: expected.amount,
           accountId,
           categoryId: category._id,

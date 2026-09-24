@@ -64,6 +64,7 @@ interface Account {
   _id: string;
   name: string;
   type: string;
+  currentBalance?: number;
 }
 interface Category {
   _id: string;
@@ -153,6 +154,7 @@ export default function BudgetsPage() {
   const [accountId, setAccountId] = useState("");
   const [closing, setClosing] = useState(false);
   const [lastDeduct, setLastDeduct] = useState<string | null>(null);
+  const [closeError, setCloseError] = useState<string | null>(null);
 
   // Delete (closed budgets only)
   const [deleteTarget, setDeleteTarget] = useState<Budget | null>(null);
@@ -195,11 +197,7 @@ export default function BudgetsPage() {
 
   useEffect(load, []);
 
-  useEffect(() => {
-    netFetch("/api/categories?type=expense")
-      .then((r) => r.json())
-      .then((res) => { if (res.success) setCategories(res.data.categories || []); })
-      .catch(() => {});
+  const loadAccounts = () => {
     netFetch("/api/accounts")
       .then((r) => r.json())
       .then((res) => {
@@ -213,6 +211,14 @@ export default function BudgetsPage() {
         }
       })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    netFetch("/api/categories?type=expense")
+      .then((r) => r.json())
+      .then((res) => { if (res.success) setCategories(res.data.categories || []); })
+      .catch(() => {});
+    loadAccounts();
   }, []);
 
   const selected = budgets.find((b) => b._id === viewId) || null;
@@ -235,7 +241,17 @@ export default function BudgetsPage() {
     [budgets, statusFilter, bounds, dateFilter]
   );
 
-  const patch = async (payload: Record<string, unknown>) => {
+  interface PatchResult {
+    ok: boolean;
+    status: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data?: any;
+    error?: string;
+  }
+
+  const patch = async (
+    payload: Record<string, unknown>
+  ): Promise<PatchResult | null> => {
     if (!viewId) return null;
     setError(null);
     let res: Response;
@@ -246,19 +262,21 @@ export default function BudgetsPage() {
         body: JSON.stringify(payload),
       });
     } catch {
-      setError("Network hiccup — please try again");
-      return null;
+      const message = "Network hiccup — please try again";
+      setError(message);
+      return { ok: false, status: 0, error: message };
     }
     const data = await res.json().catch(() => ({ success: false }));
     if (!res.ok || !data.success) {
-      setError(data.error || "Something went wrong");
-      return null;
+      const message = data.error || "Something went wrong";
+      setError(message);
+      return { ok: false, status: res.status, error: message };
     }
     lastMutation.current = Date.now();
     if (data.data?.budget) {
       setBudgets((prev) => prev.map((b) => (b._id === viewId ? withTotals(data.data.budget) : b)));
     }
-    return data.data;
+    return { ok: true, status: res.status, data: data.data };
   };
 
   // ── Create ────────────────────────────────────────────────
@@ -303,9 +321,9 @@ export default function BudgetsPage() {
       .filter((row) => row.name && row.price > 0);
     if (!items.length) return;
     setAdding(true);
-    const data = await patch({ action: "add_items", items });
+    const result = await patch({ action: "add_items", items });
     setAdding(false);
-    if (data) {
+    if (result?.ok) {
       setItemRows([{ name: "", price: "" }]);
       setAddItemOpen(false);
     }
@@ -320,21 +338,33 @@ export default function BudgetsPage() {
   // ── Close budget ──────────────────────────────────────────
   const openCloseDialog = () => {
     setError(null);
+    setCloseError(null);
     setLastDeduct(null);
-    setAccountId(accountIdOf(selected as Budget) || accountId || accounts[0]?._id || "");
+    const toDeduct = selected?.markedTotal || 0;
+    const preferred = accountIdOf(selected as Budget) || accountId || accounts[0]?._id || "";
+    const preferredBalance =
+      accounts.find((a) => a._id === preferred)?.currentBalance || 0;
+    // Default to an account that can actually cover the checked items
+    const viable = accounts.find((a) => (a.currentBalance || 0) >= toDeduct);
+    setAccountId(
+      preferred && preferredBalance >= toDeduct
+        ? preferred
+        : viable?._id || preferred
+    );
     setCloseOpen(true);
   };
 
   const handleClose = async () => {
     if (!viewId) return;
     setClosing(true);
-    const data = await patch({ action: "close", accountId: accountId || undefined });
+    setCloseError(null);
+    const result = await patch({ action: "close", accountId: accountId || undefined });
     setClosing(false);
-    if (data) {
+    if (result?.ok) {
       setCloseOpen(false);
-      const amount = Number(data.deducted || 0);
+      const amount = Number(result.data?.deducted || 0);
       const fromName =
-        accounts.find((a) => a._id === (data.deductedFrom || accountId))?.name ||
+        accounts.find((a) => a._id === (result.data?.deductedFrom || accountId))?.name ||
         accountNameOf(selected as Budget);
       setLastDeduct(
         amount > 0
@@ -342,11 +372,17 @@ export default function BudgetsPage() {
           : "Budget closed. No checked items were due for payment."
       );
       load();
-    } else {
-      // If the first attempt landed server-side but the response was lost,
-      // a retry reports "already closed" — resync instead of showing an error.
+      // The close moved money — refresh balances for the next decision
+      loadAccounts();
+    } else if (result && /already closed/i.test(result.error || "")) {
+      // The first attempt landed server-side but the response was lost —
+      // resync instead of showing an error.
       setCloseOpen(false);
       load();
+    } else {
+      // Keep the dialog open so the reason (e.g. not enough balance) stays
+      // visible right next to the payment picker.
+      setCloseError(result?.error || "Network hiccup — please try again");
     }
   };
 
@@ -386,6 +422,15 @@ export default function BudgetsPage() {
       accountNameOf(selected) ||
       accounts.find((a) => a._id === accountIdOf(selected))?.name ||
       "Not set";
+    const closeAccount = accounts.find((a) => a._id === accountId);
+    const closeAccountShort =
+      !!closeAccount &&
+      markedTotal > 0 &&
+      (closeAccount.currentBalance || 0) < markedTotal;
+    const noAccountCovers =
+      markedTotal > 0 &&
+      accounts.length > 0 &&
+      !accounts.some((a) => (a.currentBalance || 0) >= markedTotal);
 
     return (
       <div className="space-y-4">
@@ -719,16 +764,39 @@ export default function BudgetsPage() {
                   className="w-full h-10 rounded-xl border border-input bg-white px-3 text-sm"
                 >
                   <option value="">Choose payment account</option>
-                  {accounts.map((account) => (
-                    <option key={account._id} value={account._id}>
-                      {account.name} ({account.type.replace("_", " ")})
-                    </option>
-                  ))}
+                  {accounts.map((account) => {
+                    const short = markedTotal > 0 && (account.currentBalance || 0) < markedTotal;
+                    return (
+                      <option key={account._id} value={account._id} disabled={short}>
+                        {account.name} ({account.type.replace("_", " ")}) ·{" "}
+                        {formatK(account.currentBalance || 0)}
+                        {short ? " — not enough" : ""}
+                      </option>
+                    );
+                  })}
                 </select>
                 <p className="text-[11px] text-muted-foreground">
                   {formatK(markedTotal)} will be deducted from this account.
                 </p>
+                {closeAccountShort && closeAccount && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                    {closeAccount.name} only has {formatK(closeAccount.currentBalance || 0)} —
+                    choose another account or add funds first.
+                  </p>
+                )}
+                {noAccountCovers && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                    No account holds {formatK(markedTotal)} yet. Add funds before
+                    closing this budget.
+                  </p>
+                )}
               </div>
+
+              {closeError && (
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {closeError}
+                </p>
+              )}
 
               <div className="flex gap-2 pt-1">
                 <Button
@@ -742,7 +810,12 @@ export default function BudgetsPage() {
                   className="flex-1 h-11"
                   variant="destructive"
                   onClick={handleClose}
-                  disabled={closing || (markedCount > 0 && !accountId)}
+                  disabled={
+                    closing ||
+                    (markedCount > 0 && !accountId) ||
+                    closeAccountShort ||
+                    noAccountCovers
+                  }
                 >
                   {closing ? "Closing..." : "Close budget"}
                 </Button>

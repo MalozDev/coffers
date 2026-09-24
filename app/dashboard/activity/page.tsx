@@ -16,12 +16,25 @@ import { ArrowDownCircle, ArrowUpCircle, ArrowLeftRight, Search } from "lucide-r
 interface Transaction {
   _id: string;
   type: "income" | "expense" | "transfer";
+  /* Which feature touched the balance: reminder, budget, saving, … */
+  source?: string;
   amount: number;
   description: string;
   date: string;
   createdAt?: string;
   categoryId?: { name: string; color: string; icon?: string };
   accountId?: { name: string };
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  reminder: "Reminder",
+  budget: "Budget",
+  saving: "Saving",
+  expected_income: "Expected income",
+};
+
+function sourceLabel(source?: string) {
+  return (source && SOURCE_LABELS[source]) || "";
 }
 
 function formatK(n: number) {
@@ -198,6 +211,11 @@ export default function ActivityPage() {
                           {tx.description}
                         </p>
                         <p className="text-xs text-muted-foreground">
+                          {sourceLabel(tx.source) && (
+                            <span className="mr-1 inline-flex items-center rounded border border-border bg-muted px-1 py-px text-[10px] font-semibold uppercase tracking-wide text-foreground">
+                              {sourceLabel(tx.source)}
+                            </span>
+                          )}
                           {tx.categoryId?.name || tx.type} · {tx.accountId?.name} ·{" "}
                           {formatLoggedTime(tx.createdAt || tx.date)}
                         </p>

@@ -15,6 +15,19 @@ function getUserId(request: NextRequest): string | null {
   }
 }
 
+/* Older documents predate the `source` field — work out which feature
+   touched the balance from the description the feature wrote at the time. */
+function inferSource(description: string): string {
+  const text = (description || "").toLowerCase();
+  if (text.startsWith("reminder:")) return "reminder";
+  if (text.startsWith("budget item:")) return "budget";
+  if (text.startsWith("expected income:")) return "expected_income";
+  if (text.includes("goal:") || text.startsWith("returned money from saving")) {
+    return "saving";
+  }
+  return "manual";
+}
+
 // GET /api/transactions — list transactions
 export async function GET(request: NextRequest) {
   const userId = getUserId(request);
@@ -69,7 +82,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        transactions,
+        transactions: transactions.map((transaction) => ({
+          ...transaction,
+          source: transaction.source || inferSource(transaction.description),
+        })),
         pagination: {
           page,
           limit,

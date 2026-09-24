@@ -88,6 +88,7 @@ export async function PATCH(
       await Transaction.create({
         userId,
         type: "transfer",
+        source: "saving",
         amount: contribution,
         accountId: sourceAccount._id,
         toAccountId: savingsAccount._id,
@@ -122,6 +123,7 @@ export async function PATCH(
             await Transaction.create({
               userId,
               type: "transfer",
+              source: "saving",
               amount: savingsBalance,
               accountId: savingsAccount._id,
               toAccountId: returnAccount._id,
@@ -162,6 +164,7 @@ export async function PATCH(
       await Transaction.create({
         userId,
         type: "transfer",
+        source: "saving",
         amount,
         accountId: savingsAccount._id,
         toAccountId: returnAccount._id,

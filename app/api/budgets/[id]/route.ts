@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import connectToDatabase from "@/lib/db/connect";
 import { Budget, Transaction, Account, Category } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
+import { getAccountBalance } from "@/lib/utils/balances";
 
 /*
  * PATCH /api/budgets/[id] — budget detail actions
@@ -118,6 +119,20 @@ export async function PATCH(
             return NextResponse.json({ success: false, error: "Payment account not found" }, { status: 404 });
           }
 
+          // Never overdraw: the payment account must cover the checked items.
+          const available = (await getAccountBalance(userId, paymentAccountId)) ?? 0;
+          if (checkedTotal > available) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Not enough balance in ${account.name}. Available: K${Math.max(available, 0).toLocaleString()}, but the checked items total K${checkedTotal.toLocaleString()}. Choose another payment account or add funds first.`,
+                availableBalance: available,
+                required: checkedTotal,
+              },
+              { status: 409 }
+            );
+          }
+
           let categoryId = budget.categoryId || null;
           if (!categoryId) {
             const category = await Category.findOne({ userId, type: "expense" })
@@ -136,6 +151,7 @@ export async function PATCH(
             const transaction = await Transaction.create({
               userId,
               type: "expense",
+              source: "budget",
               amount: item.price,
               categoryId,
               accountId: paymentAccountId,

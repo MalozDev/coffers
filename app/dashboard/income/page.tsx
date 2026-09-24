@@ -654,11 +654,21 @@ export default function IncomePage() {
               </CardContent>
             </Card>
           ) : (
-            groupedTransactions.map(([day, dayTransactions]) => (
+            groupedTransactions.map(([day, dayTransactions]) => {
+              const dayTotal = dayTransactions.reduce(
+                (sum, tx) => sum + tx.amount,
+                0
+              );
+              return (
               <Card key={day}>
-                <div className="border-b border-border bg-muted/30 px-4 py-2">
+                <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-2">
                   <p className="text-xs font-semibold text-muted-foreground">
                     {humanDayLabel(`${day}T12:00:00`)}
+                  </p>
+                  <p className="text-xs font-mono font-semibold text-foreground">
+                    {dayTransactions.length}{" "}
+                    {dayTransactions.length === 1 ? "entry" : "entries"} · total{" "}
+                    {formatK(dayTotal)}
                   </p>
                 </div>
                 <div className="divide-y divide-border">
@@ -684,7 +694,8 @@ export default function IncomePage() {
                   ))}
                 </div>
               </Card>
-            ))
+              );
+            })
           )}
         </div>
       )}
