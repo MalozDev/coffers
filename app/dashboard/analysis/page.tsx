@@ -25,6 +25,27 @@ import {
 
 function formatK(n: number) { return `K${Math.abs(n).toLocaleString()}`; }
 
+function ToneIcon({ tone }: { tone?: string }) {
+  if (tone === "positive") return <TrendingUp className="h-3.5 w-3.5 text-green-600 shrink-0 mt-0.5" />;
+  if (tone === "negative") return <TrendingDown className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />;
+  if (tone === "warning") return <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />;
+  return <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />;
+}
+
+/** Renders engine insights — tone-aware when present, plain text otherwise. */
+function InsightList({ items }: { items: Array<{ id?: string; tone?: string; text: string }> }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((item, index) => (
+        <li key={item.id || index} className="flex items-start gap-2 text-sm text-muted-foreground">
+          <ToneIcon tone={item.tone} />
+          <span>{item.text}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 async function fetchJson(url: string, options?: RequestInit) {
   const response = await fetch(`${url}${url.includes("?") ? "&" : "?"}_=${Date.now()}`, { cache: "no-store", ...options });
   const result = await response.json();
@@ -67,8 +88,10 @@ function OverviewTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [period, setPeriod] = useState<"daily" | "weekly" | "monthly">("monthly");
+  const [period, setPeriod] = useState<"today" | "yesterday" | "week" | "month">("today");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  // A reference date only matters for windows that can be anchored
+  const showReference = period === "week" || period === "month";
 
   useEffect(() => {
     let active = true;
@@ -100,17 +123,28 @@ function OverviewTab() {
     <div className="space-y-4 pt-4">
       {/* Period & Date */}
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="grid grid-cols-3 gap-2 sm:flex-1">
-          {(["daily", "weekly", "monthly"] as const).map((p) => (
+        <div className="grid grid-cols-4 gap-2 sm:flex-1">
+          {(["today", "yesterday", "week", "month"] as const).map((p) => (
             <Button key={p} variant={period === p ? "default" : "secondary"} size="sm"
               onClick={() => setPeriod(p)} className="h-9 text-xs capitalize">{p}</Button>
           ))}
         </div>
-        <div className="flex flex-col gap-1.5 sm:w-44">
-          <label htmlFor="analysis-date" className="text-xs text-muted-foreground">Reference Date</label>
-          <Input id="analysis-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" />
-        </div>
+        {showReference && (
+          <div className="flex flex-col gap-1.5 sm:w-44">
+            <label htmlFor="analysis-date" className="text-xs text-muted-foreground">
+              {period === "week" ? "Week of" : "Month of"}
+            </label>
+            <Input id="analysis-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 text-sm" />
+          </div>
+        )}
       </div>
+
+      {/* Resolved window + comparison, straight from the period engine */}
+      {data.period && (
+        <p className="-mt-1 text-xs text-muted-foreground">
+          {data.period.label} · compared with {data.period.prevLabel}
+        </p>
+      )}
 
       {/* Income / Expenses / Savings Summary — compact 3-up on all screens */}
       <Card>
@@ -120,7 +154,7 @@ function OverviewTab() {
               <p className="text-[10px] sm:text-[11px] text-muted-foreground uppercase tracking-wide">Income</p>
               <p className="text-sm sm:text-lg font-mono font-bold text-green-600 mt-0.5 truncate">+{formatK(data.current.income)}</p>
               {data.changes?.income !== undefined && (
-                <span className={`block text-[10px] font-semibold ${data.changes.income > 0 ? "text-red-500" : "text-green-500"}`}>
+                <span className={`block text-[10px] font-semibold ${data.changes.income > 0 ? "text-green-500" : "text-red-500"}`}>
                   {data.changes.income > 0 ? "+" : ""}{Math.round(data.changes.income)}%
                 </span>
               )}
@@ -222,7 +256,11 @@ function OverviewTab() {
         <Card className="border-accent/20 bg-accent/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2"><BarChart3 className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">Insights</h3></div>
-            <ul className="space-y-2">{data.insights.map((i: string, idx: number) => <li key={idx} className="text-sm text-muted-foreground">• {i}</li>)}</ul>
+            <InsightList items={
+              data.insightsDetailed?.length > 0
+                ? data.insightsDetailed
+                : (data.insights || []).map((text: string) => ({ text }))
+            } />
           </CardContent>
         </Card>
       )}
@@ -248,6 +286,16 @@ function PatternsTab() {
 
   return (
     <div className="space-y-4 pt-4">
+      {/* Engine summary — what the pattern layer noticed */}
+      {data.insightsDetailed?.length > 0 && (
+        <Card className="border-accent/20 bg-accent/5">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">What the engine sees</h3></div>
+            <InsightList items={data.insightsDetailed} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Payday Pattern */}
       {data.paydayPattern?.detected && (
         <Card className="border-blue-200 bg-blue-50/50">
@@ -477,7 +525,11 @@ function ForecastTab() {
         <Card className="border-accent/20 bg-accent/5">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2"><Sparkles className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">Forecast Insights</h3></div>
-            <ul className="space-y-2">{data.insights.map((i: string, idx: number) => <li key={idx} className="text-sm text-muted-foreground">• {i}</li>)}</ul>
+            <InsightList items={
+              data.insightsDetailed?.length > 0
+                ? data.insightsDetailed
+                : (data.insights || []).map((text: string) => ({ text }))
+            } />
           </CardContent>
         </Card>
       )}
@@ -589,6 +641,20 @@ function SimulateTab() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Warnings from the simulation engine */}
+          {result.warnings?.length > 0 && (
+            <Card className="border-amber-200 bg-amber-50/60">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 mb-2"><AlertTriangle className="h-4 w-4 text-amber-500" /><h3 className="text-sm font-semibold text-amber-700">Warnings</h3></div>
+                <ul className="space-y-1.5">
+                  {result.warnings.map((warning: string, i: number) => (
+                    <li key={i} className="text-sm text-amber-700">• {warning}</li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}
