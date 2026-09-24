@@ -6,6 +6,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import TopBar from "@/components/layout/TopBar";
 import BottomNav from "@/components/layout/BottomNav";
 import PwaInstallPrompt from "@/components/layout/PwaInstallPrompt";
+import { installApiCache } from "@/lib/client/api-cache";
 
 export interface DashboardProfile {
   name: string;
@@ -23,10 +24,14 @@ export default function DashboardLayout({
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const pathname = usePathname();
 
+  useEffect(() => {
+    installApiCache();
+  }, []);
+
   // Close the mobile menu whenever the route changes
   useEffect(() => {
     setSidebarOpen(false);
-  }, [pathname]);
+  }, []);
 
   useEffect(() => {
     const handleProfileUpdate = (event: Event) => {
@@ -40,7 +45,7 @@ export default function DashboardLayout({
         headers: { "Cache-Control": "no-cache" },
       });
       if (response.status === 401) {
-        window.location.replace(`/login?from=${encodeURIComponent(pathname)}`);
+        window.location.replace(`/login?from=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
       const result = await response.json();

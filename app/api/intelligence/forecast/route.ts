@@ -12,7 +12,11 @@ export async function GET(request: NextRequest) {
 
   try {
     await connectToDatabase();
-    const result = await forecastForUser(userId);
+    const { searchParams } = new URL(request.url);
+    const period = searchParams.get("period");
+    const date = searchParams.get("date");
+
+    const result = await forecastForUser(userId, period, date);
 
     return NextResponse.json(
       { success: true, data: result.data, meta: result.meta },

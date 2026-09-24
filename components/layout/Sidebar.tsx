@@ -66,6 +66,7 @@ function SidebarContent({ onClose, profile }: SidebarContentProps & { profile?: 
               src="/coffers-logo.png"
               alt="Coffers"
               fill
+              sizes="40px"
               className="object-cover"
             />
           </div>

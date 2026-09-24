@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db/connect";
 import { Notification } from "@/lib/models";
 import { getUserIdFromRequest } from "@/lib/auth/helpers";
+import { syncSmartNotifications } from "@/lib/notifications/service";
 
 export async function GET(request: NextRequest) {
   const userId = getUserIdFromRequest(request);
@@ -9,6 +10,7 @@ export async function GET(request: NextRequest) {
 
   try {
     await connectToDatabase();
+    await syncSmartNotifications(userId);
     const notifications = await Notification.find({ userId }).sort({ createdAt: -1 }).limit(100).lean();
     const unreadCount = await Notification.countDocuments({ userId, readAt: { $exists: false } });
     return NextResponse.json({ success: true, data: { notifications, unreadCount } });

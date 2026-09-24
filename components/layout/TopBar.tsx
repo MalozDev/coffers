@@ -28,7 +28,11 @@ export default function TopBar({ onMenuClick, profile }: TopBarProps) {
 
     loadUnreadCount();
     window.addEventListener("coffers:notifications-updated", loadUnreadCount);
-    return () => window.removeEventListener("coffers:notifications-updated", loadUnreadCount);
+    window.addEventListener("coffers:data-updated", loadUnreadCount);
+    return () => {
+      window.removeEventListener("coffers:notifications-updated", loadUnreadCount);
+      window.removeEventListener("coffers:data-updated", loadUnreadCount);
+    };
   }, []);
 
   return (
@@ -53,6 +57,7 @@ export default function TopBar({ onMenuClick, profile }: TopBarProps) {
                 src="/coffers-logo.png"
                 alt="Coffers"
                 fill
+                sizes="28px"
                 className="object-cover"
               />
             </div>

@@ -90,7 +90,7 @@ export default function SpendingByCategory({ data }: SpendingByCategoryProps) {
               {d.icon} {d.name}
             </span>
             <span className="text-xs font-mono font-medium shrink-0">
-              {formatK(d.total)}
+              {formatK(d.total)} · {Math.round(d.percentage)}%
             </span>
           </div>
         ))}

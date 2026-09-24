@@ -16,6 +16,8 @@ import {
   ForecastChart,
   WeeklyBreakdown,
   IncomeExpensePie,
+  ExpenseHistogram,
+  CategoryTreemap,
 } from "@/components/charts";
 import {
   TrendingUp, TrendingDown, Minus, BarChart3, Brain,
@@ -250,6 +252,36 @@ function OverviewTab() {
           <IncomeExpensePie income={data.current.income} expenses={data.current.expenses} />
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="mb-1 text-sm font-semibold">Transaction size distribution</h3>
+            <p className="mb-2 text-xs text-muted-foreground">Number of expenses in each amount range.</p>
+            {data.transactionAmounts?.length ? <ExpenseHistogram amounts={data.transactionAmounts} /> : <p className="py-12 text-center text-sm text-muted-foreground">No expense data for this period.</p>}
+          </CardContent>
+        </Card>
+        <Card className="min-w-0">
+          <CardContent className="p-4">
+            <h3 className="mb-1 text-sm font-semibold">Spending concentration</h3>
+            <p className="mb-2 text-xs text-muted-foreground">Each tile shows the category and amount. Bigger tiles mean more spending.</p>
+            {data.categoryBreakdown?.length ? <CategoryTreemap data={data.categoryBreakdown} /> : <p className="py-12 text-center text-sm text-muted-foreground">No category data for this period.</p>}
+          </CardContent>
+        </Card>
+      </div>
+
+      {data.categoryBreakdown?.length > 0 && (
+        <Card className="border-accent/20 bg-accent/5">
+        <CardContent className="p-4">
+          <h3 className="mb-2 text-sm font-semibold">What stands out</h3>
+          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <div><span className="text-muted-foreground">Largest category: </span><strong>{data.categoryBreakdown[0].name}</strong><span className="font-mono"> ({formatK(data.categoryBreakdown[0].total)})</span></div>
+            <div><span className="text-muted-foreground">Share of spending: </span><strong>{Math.round(data.categoryBreakdown[0].percentage)}%</strong></div>
+            <div><span className="text-muted-foreground">Average expense: </span><strong className="font-mono">{formatK(data.current.avgTransaction || 0)}</strong></div>
+          </div>
+        </CardContent>
+        </Card>
+      )}
 
       {/* Insights */}
       {data.insights?.length > 0 && (
@@ -677,7 +709,17 @@ function SimulateTab() {
 // ─── Ask Coffers Tab ───────────────────────────────────────
 function AskTab() {
   const [question, setQuestion] = useState("");
-  const [messages, setMessages] = useState<Array<{ role: "user" | "coffers"; text: string }>>([]);
+  const [messages, setMessages] = useState<Array<{
+    role: "user" | "coffers";
+    text: string;
+    suggestions?: string[];
+  }>>([
+    {
+      role: "coffers",
+      text: "Hey! I'm Coffers — ask me anything about your money: what you spent, what's coming up, whether you can afford something, or how your goals are going.",
+      suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
+    },
+  ]);
   const [loading, setLoading] = useState(false);
 
   const handleAsk = async (e: React.FormEvent) => {
@@ -688,43 +730,55 @@ function AskTab() {
     setMessages((prev) => [...prev, { role: "user", text: q }]);
     setLoading(true);
     try {
+      const history = messages
+        .filter((message) => message.role === "user")
+        .map((message) => message.text);
       const data = await fetchJson("/api/intelligence/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: q }),
+        body: JSON.stringify({ question: q, history }),
       });
-      setMessages((prev) => [...prev, { role: "coffers", text: data.answer }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "coffers", text: data.answer, suggestions: data.suggestions || [] },
+      ]);
+    } catch (error) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "coffers",
+          text: error instanceof Error ? error.message : "I couldn't answer that just now. Please try again.",
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
-  const suggestions = [
-    "How much do I have?",
-    "What did I spend this month?",
-    "Can I afford K5,000?",
-    "How are my savings goals?",
-    "What's my budget status?",
-    "What's coming up?",
-  ];
+  const resetConversation = () => {
+    setMessages([
+      {
+        role: "coffers",
+        text: "Hey! I'm Coffers — ask me anything about your money: what you spent, what's coming up, whether you can afford something, or how your goals are going.",
+        suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
+      },
+    ]);
+    setQuestion("");
+  };
 
   return (
     <div className="space-y-4 pt-4">
       <Card className="border-accent/20 bg-accent/5">
         <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3"><Brain className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">Ask Coffers</h3></div>
-          <p className="text-xs text-muted-foreground mb-3">Ask any question about your finances</p>
-          {messages.length === 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {suggestions.map((s) => (
-                <button key={s} onClick={() => setQuestion(s)} className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors">
-                  {s}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2"><Brain className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">Ask Coffers</h3></div>
+            <button type="button" onClick={resetConversation} className="text-xs text-muted-foreground hover:text-foreground" disabled={loading}>
+              New conversation
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">Your answers are based on your Coffers data only.</p>
           <form onSubmit={handleAsk} className="flex gap-2">
-            <Input placeholder="Ask me anything..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" />
+            <Input placeholder="Ask about your money..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" disabled={loading} />
             <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={loading || !question.trim()}>
               <Send className="h-4 w-4" />
             </Button>
@@ -742,6 +796,20 @@ function AskTab() {
                   {msg.text}
                 </p>
               </div>
+              {msg.role === "coffers" && msg.suggestions && msg.suggestions.length > 0 && !loading && (
+                <div className="flex flex-wrap gap-2 mt-3 pl-6">
+                  {msg.suggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onClick={() => setQuestion(suggestion)}
+                      className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

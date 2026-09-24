@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { question } = body;
+    const { question, history, period, date } = body;
 
     if (!question || typeof question !== "string") {
       return NextResponse.json(
@@ -24,9 +24,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const conversation = Array.isArray(history)
+      ? history.filter((entry: unknown): entry is string => typeof entry === "string")
+      : [];
+
     await connectToDatabase();
 
-    const result = await ask(userId, question);
+    const result = await ask(userId, question, {
+      history: conversation,
+      period: typeof period === "string" ? period : null,
+      date: typeof date === "string" ? date : null,
+    });
 
     return NextResponse.json(
       {
@@ -34,6 +42,7 @@ export async function POST(request: NextRequest) {
         data: {
           question: result.data.question,
           answer: result.data.answer,
+          suggestions: result.data.suggestions,
           context: result.data.context,
           timestamp: result.data.timestamp,
         },

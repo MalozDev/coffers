@@ -33,13 +33,31 @@ export interface ForecastCategory {
 
 export interface ForecastInput {
   now: Date;
-  /** Transactions dated this month and <= now. */
+  /** Transactions in the pacing window (this month by default). */
   transactions: ForecastTransaction[];
   accounts: ForecastAccount[];
-  /** Expense totals per category for this month. */
+  /** Expense totals per category for the pacing window. */
   categories: ForecastCategory[];
   /** Total expenses in the previous calendar month (pace comparison). */
   prevMonthExpenses?: number;
+  /**
+   * Optional analysis window (the page's period filter). When present the
+   * burn rate is computed over this window instead of month-to-date, so the
+   * Forecast tab honours Today/Yesterday/Week/Month like every other section.
+   * Projection target stays month-end of the month containing `now`.
+   */
+  scope?: ForecastScope;
+  /** Explains a pace fallback (e.g. empty window → month-to-date). */
+  scopeNote?: string;
+}
+
+export interface ForecastScope {
+  /** Human label, e.g. "This week". */
+  label: string;
+  /** Inclusive window start. */
+  start: Date;
+  /** Inclusive window end (may extend past `now` for week/month). */
+  end: Date;
 }
 
 export interface CategoryProjection {
@@ -84,6 +102,10 @@ export interface ForecastOutput {
   weeklyBreakdown: WeekBucket[];
   /** Days until the combined balance hits zero at the current net burn. */
   runwayDays: number | null;
+  /** Label of the pacing window when it differs from the whole month. */
+  scopeLabel?: string;
+  /** Pace fallback explanation, when the selected window was empty. */
+  scopeNote?: string;
   insights: string[];
   insightsDetailed: PeriodInsight[];
 }
@@ -94,13 +116,21 @@ function shiftDays(value: Date, days: number): Date {
   return d;
 }
 
+function startOfDay(value: Date): Date {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function endOfDay(value: Date): Date {
   const d = new Date(value);
   d.setHours(23, 59, 59, 999);
   return d;
 }
 
-/** One bucket per calendar week of the month, clipped to `now`. */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** One bucket per calendar week of the window, clipped to `now`. */
 export function buildWeeklyBreakdown(
   transactions: ForecastTransaction[],
   monthStart: Date,
@@ -151,6 +181,8 @@ interface ForecastInsightArgs {
   prevMonthExpenses?: number;
   runwayDays: number | null;
   dailyNet: number;
+  /** Label of the pacing window when it is not the whole month. */
+  scopeLabel?: string;
 }
 
 export function buildForecastInsights(args: ForecastInsightArgs): PeriodInsight[] {
@@ -165,10 +197,13 @@ export function buildForecastInsights(args: ForecastInsightArgs): PeriodInsight[
       : 0;
 
   if (args.daysRemaining > 0) {
+    const basis = args.scopeLabel
+      ? ` (${args.scopeLabel} pace)`
+      : "";
     add(
       "pace",
       "neutral",
-      `At K${Math.round(args.dailySpendRate)}/day you'll spend about ${formatK(args.projectedExpenses)} by month-end.`
+      `At K${Math.round(args.dailySpendRate)}/day${basis} you'll spend about ${formatK(args.projectedExpenses)} by month-end.`
     );
   }
 
@@ -237,6 +272,13 @@ export function buildForecastInsights(args: ForecastInsightArgs): PeriodInsight[
   return out.slice(0, 5);
 }
 
+/** Whole days elapsed inside the pacing window, always >= 1. */
+export function elapsedDaysIn(start: Date, end: Date, now: Date): number {
+  const from = startOfDay(start).getTime();
+  const to = Math.min(startOfDay(end).getTime(), startOfDay(now).getTime());
+  return Math.max(1, Math.floor((to - from) / DAY_MS) + 1);
+}
+
 export function buildForecast(input: ForecastInput): ForecastOutput {
   const { now } = input;
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -244,7 +286,16 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
   const dayOfMonth = now.getDate();
   const daysInMonth = monthEnd.getDate();
   const daysRemaining = daysInMonth - dayOfMonth;
-  const safeDay = Math.max(dayOfMonth, 1);
+
+  // Pacing window: the analysis filter when set, otherwise month-to-date.
+  const scope = input.scope;
+  const paceDays = scope
+    ? elapsedDaysIn(scope.start, scope.end, now)
+    : Math.max(dayOfMonth, 1);
+  const scopeLabel =
+    scope && !(scope.start <= monthStart && scope.end >= endOfDay(monthEnd))
+      ? scope.label
+      : undefined;
 
   let income = 0;
   let expenses = 0;
@@ -253,8 +304,8 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
     else if (tx.type === "expense") expenses += tx.amount;
   }
 
-  const dailySpendRate = expenses / safeDay;
-  const dailyIncomeRate = income / safeDay;
+  const dailySpendRate = expenses / paceDays;
+  const dailyIncomeRate = income / paceDays;
   const projectedExpenses = dailySpendRate * daysInMonth;
   const projectedIncome = dailyIncomeRate * daysInMonth;
   const projectedSavings = projectedIncome - projectedExpenses;
@@ -266,8 +317,8 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
       categoryId: category.categoryId,
       name: category.name,
       currentSpend: Math.round(category.currentSpend),
-      dailyRate: round(category.currentSpend / safeDay, 2),
-      projectedMonthEnd: Math.round((category.currentSpend / safeDay) * daysInMonth),
+      dailyRate: round(category.currentSpend / paceDays, 2),
+      projectedMonthEnd: Math.round((category.currentSpend / paceDays) * daysInMonth),
     }))
     .sort((a, b) => b.projectedMonthEnd - a.projectedMonthEnd);
 
@@ -277,14 +328,14 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
     currentBalance: Math.round(account.currentBalance),
     projectedMonthEnd: Math.round(
       account.currentBalance +
-        ((account.monthIncome - account.monthExpense) / safeDay) * daysRemaining
+        ((account.monthIncome - account.monthExpense) / paceDays) * daysRemaining
     ),
   }));
 
   const weeklyBreakdown = buildWeeklyBreakdown(
     input.transactions,
-    monthStart,
-    monthEnd,
+    scope ? startOfDay(scope.start) : monthStart,
+    scope ? endOfDay(scope.end) : endOfDay(monthEnd),
     now
   );
 
@@ -292,9 +343,9 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
     (sum, account) => sum + account.currentBalance,
     0
   );
-  const dailyNet = (income - expenses) / safeDay;
+  const dailyNet = (income - expenses) / paceDays;
   const runwayDays =
-    dailyNet < 0 && dayOfMonth > 0
+    dailyNet < 0 && paceDays > 0
       ? Math.max(0, Math.floor(totalBalance / -dailyNet))
       : null;
 
@@ -310,6 +361,7 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
     prevMonthExpenses: input.prevMonthExpenses,
     runwayDays,
     dailyNet,
+    scopeLabel,
   });
 
   return {
@@ -332,6 +384,8 @@ export function buildForecast(input: ForecastInput): ForecastOutput {
     accountProjections,
     weeklyBreakdown,
     runwayDays,
+    scopeLabel,
+    scopeNote: input.scopeNote,
     insights: insightsDetailed.map((insight) => insight.text),
     insightsDetailed,
   };

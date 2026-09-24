@@ -7,8 +7,8 @@
  * behaviour is reproducible under test.
  */
 
-import type { PeriodInsight } from "./types";
-import { formatK, round } from "./format";
+import type { PeriodInsight, PeriodRange } from "./types";
+import { formatDayMonth, formatK, round } from "./format";
 import { percentChange } from "./analysis";
 
 export interface PatternCategoryRef {
@@ -81,6 +81,8 @@ export interface PatternsResult {
   };
   insights: string[];
   insightsDetailed: PeriodInsight[];
+  /** Which analysis window these numbers were scoped to (set by the engine). */
+  window?: { key: string; label: string; prevLabel: string };
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -215,7 +217,59 @@ function detectPayday(
   };
 }
 
-function detectTrend(expenses: PatternTransaction[]): SpendingTrend {
+function startOfDay(value: Date | string): Date {
+  const d = new Date(value);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Trend direction. With a window: bucket the window adaptively — daily for
+ * ≤14-day windows, weekly up to ~2 months, monthly beyond — zero-filling
+ * gaps so "spending stopped" reads as falling, not missing. Without a
+ * window: the original month-over-month comparison over all history.
+ */
+function detectTrend(
+  expenses: PatternTransaction[],
+  window?: PeriodRange
+): SpendingTrend {
+  if (window) {
+    const DAY = 24 * 60 * 60 * 1000;
+    const spanMs = window.end.getTime() - window.start.getTime();
+    const spanDays = Math.max(1, Math.round(spanMs / DAY));
+    // Buckets anchor at the window start so labels stay inside the window.
+    const step = spanDays <= 14 ? DAY : spanDays <= 62 ? 7 * DAY : 30 * DAY;
+    const lastIndex = Math.floor(spanMs / step);
+
+    const totals = new Map<number, number>();
+    for (let i = 0; i <= lastIndex; i++) totals.set(i, 0);
+    for (const tx of expenses) {
+      const date = new Date(tx.date);
+      if (date < window.start || date > window.end) continue;
+      const index = Math.min(
+        lastIndex,
+        Math.max(0, Math.floor((date.getTime() - window.start.getTime()) / step))
+      );
+      totals.set(index, (totals.get(index) || 0) + tx.amount);
+    }
+
+    const series = [...totals.entries()].sort(([a], [b]) => a - b);
+    if (series.length < 2) return { direction: "insufficient_data", monthlyData: [] };
+    const previous = series[series.length - 2][1];
+    const current = series[series.length - 1][1];
+    const labelFor = (index: number): string => {
+      const bucketStart = new Date(window.start.getTime() + index * step);
+      return step === 30 * DAY ? monthKey(bucketStart) : formatDayMonth(bucketStart);
+    };
+    return {
+      direction: current > previous ? "increasing" : current < previous ? "decreasing" : "stable",
+      monthlyData: series.map(([index, total]) => ({
+        month: labelFor(index),
+        total: Math.round(total),
+      })),
+    };
+  }
+
   const monthlyTotals: Record<string, number> = {};
   for (const tx of expenses) {
     const key = monthKey(tx.date);
@@ -225,17 +279,18 @@ function detectTrend(expenses: PatternTransaction[]): SpendingTrend {
   const months = Object.entries(monthlyTotals).sort(([a], [b]) => a.localeCompare(b));
   if (months.length < 2) return { direction: "insufficient_data", monthlyData: [] };
 
-  const last = months[months.length - 1][1];
-  const previous = months[months.length - 2][1];
+  const lastMonth = months[months.length - 1][1];
+  const previousMonth = months[months.length - 2][1];
   return {
-    direction: last > previous ? "increasing" : last < previous ? "decreasing" : "stable",
+    direction: lastMonth > previousMonth ? "increasing" : lastMonth < previousMonth ? "decreasing" : "stable",
     monthlyData: months.map(([month, total]) => ({ month, total: Math.round(total) })),
   };
 }
 
 function detectCategoryChanges(
   expenses: PatternTransaction[],
-  now: Date
+  now: Date,
+  window?: PeriodRange
 ): CategoryChange[] {
   const currentMonth = monthKey(now);
   const lastMonth = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1));
@@ -247,6 +302,18 @@ function detectCategoryChanges(
     if (!category.id) continue;
     if (!byCategory[category.id]) {
       byCategory[category.id] = { current: 0, previous: 0, name: category.name };
+    }
+    if (window) {
+      const time = new Date(tx.date).getTime();
+      if (time >= window.start.getTime() && time <= window.end.getTime()) {
+        byCategory[category.id].current += tx.amount;
+      } else if (
+        time >= window.prevStart.getTime() &&
+        time <= window.prevEnd.getTime()
+      ) {
+        byCategory[category.id].previous += tx.amount;
+      }
+      continue;
     }
     const key = monthKey(tx.date);
     if (key === currentMonth) byCategory[category.id].current += tx.amount;
@@ -293,6 +360,7 @@ function buildInsights(args: {
   trend: SpendingTrend;
   categoryChanges: CategoryChange[];
   health: PatternsResult["healthIndicators"];
+  window?: PeriodRange;
 }): PeriodInsight[] {
   const out: PeriodInsight[] = [];
   const add = (id: string, tone: PeriodInsight["tone"], text: string) => {
@@ -313,10 +381,11 @@ function buildInsights(args: {
     );
   }
 
+  const trendScope = args.window ? `within ${args.window.label}` : "month over month";
   if (args.trend.direction === "increasing") {
-    add("trend-up", "warning", "Spending is rising month over month.");
+    add("trend-up", "warning", `Spending is rising ${trendScope}.`);
   } else if (args.trend.direction === "decreasing") {
-    add("trend-down", "positive", "Spending is falling month over month.");
+    add("trend-down", "positive", `Spending is falling ${trendScope}.`);
   }
 
   if (args.forgotten.length > 0) {
@@ -347,28 +416,46 @@ function buildInsights(args: {
     add(
       "category-riser",
       "warning",
-      `${riser.name} is up ${riser.change}% versus last month.`
+      `${riser.name} is up ${riser.change}% versus ${args.window ? args.window.prevLabel : "last month"}.`
     );
   }
 
   return out.slice(0, 5);
 }
 
+/**
+ * @param transactions  History to detect over — recurring/payday/forgotten
+ *                       need multi-period history regardless of the filter.
+ * @param now            Injectable clock.
+ * @param window         When present, every *statistic* (trend, category
+ *                       changes, health, insights) is scoped to this analysis
+ *                       window and its comparison window — so the analysis
+ *                       page's period filter applies to this section too.
+ */
 export function detectPatterns(
   transactions: PatternTransaction[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  window?: PeriodRange
 ): PatternsResult {
   const expenses = transactions.filter((t) => t.type === "expense");
   const income = transactions.filter((t) => t.type === "income");
 
+  const inWindow = (tx: PatternTransaction): boolean => {
+    if (!window) return true;
+    const time = new Date(tx.date).getTime();
+    return time >= window.start.getTime() && time <= window.end.getTime();
+  };
+  const windowExpenses = window ? expenses.filter(inWindow) : expenses;
+  const windowIncome = window ? income.filter(inWindow) : income;
+
   const recurringExpenses = detectRecurring(expenses, now);
   const paydayPattern = detectPayday(transactions, income, now);
-  const spendingTrend = detectTrend(expenses);
-  const categoryChanges = detectCategoryChanges(expenses, now);
+  const spendingTrend = detectTrend(expenses, window);
+  const categoryChanges = detectCategoryChanges(expenses, now, window);
   const forgottenExpenses = detectForgotten(recurringExpenses, now);
 
-  const totalIncome = income.reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = windowIncome.reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = windowExpenses.reduce((sum, t) => sum + t.amount, 0);
 
   const healthIndicators = {
     savingsRate:
@@ -385,7 +472,7 @@ export function detectPatterns(
             : "Needs attention",
     categoryDiversification:
       new Set(
-        expenses.map((t) => categoryOf(t).id).filter(Boolean)
+        windowExpenses.map((t) => categoryOf(t).id).filter(Boolean)
       ).size > 3
         ? "Diversified"
         : "Concentrated",
@@ -399,6 +486,7 @@ export function detectPatterns(
     trend: spendingTrend,
     categoryChanges,
     health: healthIndicators,
+    window,
   });
 
   return {

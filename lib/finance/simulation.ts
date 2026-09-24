@@ -29,6 +29,12 @@ export interface SimulationInput {
   /** Day of month at simulation time (1-based). */
   dayOfMonth: number;
   goals: SimulationGoal[];
+  /**
+   * Human label of the money being reasoned about, e.g. "this month",
+   * "this week", "today". Defaults to "this month" — wording in warnings
+   * and the recommendation adapts to it.
+   */
+  scopeLabel?: string;
 }
 
 export interface GoalImpact {
@@ -42,6 +48,8 @@ export interface GoalImpact {
 
 export interface SimulationOutput {
   purchase: { amount: number; description: string; categoryId?: string };
+  /** The window the simulation reasoned over. */
+  scopeLabel: string;
   before: {
     availableBalance: number;
     expectedIncome: number;
@@ -68,6 +76,8 @@ export interface SimulationOutput {
   affordabilityScore: { level: "low" | "moderate" | "high" | "critical"; label: string };
   recommendation: string;
   warnings: string[];
+  /** Pace/figure fallback explanation, when the selected window was empty. */
+  scopeNote?: string;
 }
 
 /** Same thresholds the dashboard has always shown. */
@@ -122,13 +132,14 @@ function recommendationFor(
   committed: number,
   currentRate: number,
   newRate: number,
-  goalImpacts: GoalImpact[]
+  goalImpacts: GoalImpact[],
+  scopeLabel: string
 ): string {
   if (amount > balance) {
     return `You don't have enough available balance for this purchase. You'd need ${formatK(amount - balance)} more.`;
   }
   if (newRate < 0) {
-    return `This purchase would put you in a deficit this month. Consider waiting until you have more income.`;
+    return `This purchase would put you in a deficit ${scopeLabel}. Consider waiting until you have more income.`;
   }
   if (newRate < 10 && currentRate >= 10) {
     return `This purchase would drop your savings rate from ${Math.round(currentRate)}% to ${Math.round(newRate)}%. Consider if this is the right time.`;
@@ -156,6 +167,7 @@ export function simulatePurchase(input: SimulationInput): SimulationOutput {
     dayOfMonth,
     goals,
   } = input;
+  const scopeLabel = input.scopeLabel || "this month";
 
   const balanceAfterPurchase = totalBalance - amount;
   const netPositionAfter = balanceAfterPurchase + expectedIncome - committedExpenses;
@@ -184,7 +196,7 @@ export function simulatePurchase(input: SimulationInput): SimulationOutput {
     );
   }
   if (monthIncome > 0 && savingsAfterPurchase < 0) {
-    warnings.push("This would wipe out this month's savings entirely.");
+    warnings.push(`This would wipe out ${scopeLabel}'s savings entirely.`);
   }
   const totalGoalDelay = goalImpacts.reduce((sum, goal) => sum + goal.delayMonths, 0);
   if (totalGoalDelay > 0) {
@@ -197,6 +209,7 @@ export function simulatePurchase(input: SimulationInput): SimulationOutput {
       description: description || "Unnamed purchase",
       categoryId,
     },
+    scopeLabel,
     before: {
       availableBalance: totalBalance,
       expectedIncome,
@@ -229,7 +242,8 @@ export function simulatePurchase(input: SimulationInput): SimulationOutput {
       committedExpenses,
       currentSavingsRate,
       savingsRateAfter,
-      goalImpacts
+      goalImpacts,
+      scopeLabel
     ),
     warnings,
   };

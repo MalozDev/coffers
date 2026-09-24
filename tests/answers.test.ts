@@ -69,6 +69,12 @@ test("spending questions answer for this week", () => {
   assert.equal(result.data.period, "week");
 });
 
+test("follow-up questions inherit the previous finance topic", () => {
+  const result = answerQuestion("and this week?", snapshot(), ["What did I spend today?"]);
+  assert.match(result.answer, /K900 so far this week/);
+  assert.equal(result.data.period, "week");
+});
+
 test("spending questions answer for this month with pace and top category", () => {
   const result = answerQuestion("What did I spend this month?", snapshot());
   assert.match(result.answer, /K2,400 so far this month/);
@@ -149,11 +155,22 @@ test("income questions answer this month's earnings", () => {
   assert.equal(result.data.monthIncome, 5000);
 });
 
-test("unknown questions fall back to the engine snapshot", () => {
-  const result = answerQuestion("What's the weather like?", snapshot());
+test("general financial questions receive a snapshot", () => {
+  const result = answerQuestion("How is my financial situation?", snapshot());
   assert.match(result.answer, /Balance: K15,000/);
-  assert.match(result.answer, /yesterday/);
   assert.match(result.answer, /September 2026/);
+});
+
+test("spending questions without a period ask for clarification", () => {
+  const result = answerQuestion("How much did I spend?", snapshot());
+  assert.match(result.answer, /Which period/);
+  assert.equal(result.data.status, "needs_input");
+});
+
+test("unrelated questions are explicitly out of scope", () => {
+  const result = answerQuestion("What's the weather like?", snapshot());
+  assert.match(result.answer, /Coffers finances/);
+  assert.equal(result.data.status, "out_of_scope");
 });
 
 test("answers are deterministic for the same snapshot", () => {

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { amount, description, categoryId } = body;
+    const { amount, description, categoryId, period, date } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
       amount: Number(amount),
       description: typeof description === "string" ? description : undefined,
       categoryId: typeof categoryId === "string" ? categoryId : undefined,
+      period: typeof period === "string" ? period : null,
+      date: typeof date === "string" ? date : null,
     });
 
     return NextResponse.json(

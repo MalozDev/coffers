@@ -5,3 +5,5 @@ export { default as SavingsRateGauge } from "./SavingsRateGauge";
 export { default as ForecastChart } from "./ForecastChart";
 export { default as WeeklyBreakdown } from "./WeeklyBreakdown";
 export { default as IncomeExpensePie } from "./IncomeExpensePie";
+export { default as ExpenseHistogram } from "./ExpenseHistogram";
+export { default as CategoryTreemap } from "./CategoryTreemap";

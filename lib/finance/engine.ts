@@ -13,10 +13,11 @@ import { Account, Budget, ExpectedIncome, Goal, Reminder, Transaction } from "@/
 import { getAccountBalances } from "@/lib/utils/balances";
 
 import type { FlowTotals, MetaEnvelope, PeriodAnalysis } from "./types";
-import { resolvePeriod } from "./periods";
+import { resolvePeriod, scopeLabel } from "./periods";
 import { buildPeriodAnalysis, type CategoryInput } from "./analysis";
 import {
   buildForecast,
+  elapsedDaysIn,
   type ForecastAccount,
   type ForecastCategory,
   type ForecastOutput,
@@ -24,7 +25,7 @@ import {
 } from "./forecast";
 import { simulatePurchase, type SimulationInput, type SimulationOutput } from "./simulation";
 import { detectPatterns, type PatternTransaction, type PatternsResult } from "./patterns";
-import { answerQuestion, type AskSnapshot } from "./answers";
+import { answerQuestion, type AskSnapshot, type AskTx } from "./answers";
 
 function envelope<T>(
   data: T,
@@ -97,6 +98,18 @@ async function categoryBreakdownFor(
     total: row.total,
     count: row.count,
   }));
+}
+
+/** Expense amounts for the selected window, used to build a distribution histogram. */
+async function expenseAmountsFor(userId: string, start: Date, end: Date): Promise<number[]> {
+  const rows = await Transaction.find({
+    userId: oid(userId),
+    type: "expense",
+    date: { $gte: start, $lte: end },
+  })
+    .select("amount -_id")
+    .lean();
+  return rows.map((row) => row.amount).filter((amount) => Number.isFinite(amount) && amount > 0);
 }
 
 async function savingsAccountIds(userId: string): Promise<Types.ObjectId[]> {
@@ -172,6 +185,8 @@ export interface PeriodAnalysisPayload extends PeriodAnalysis {
   dateRange: { start: Date; end: Date; prevStart: Date; prevEnd: Date };
   allTime: { income: number; expenses: number };
   savingsTotal: number;
+  /** Individual expense amounts for the overview distribution histogram. */
+  transactionAmounts: number[];
 }
 
 export async function analyzePeriod(
@@ -182,12 +197,13 @@ export async function analyzePeriod(
 ): Promise<MetaEnvelope<PeriodAnalysisPayload>> {
   const range = resolvePeriod(requested, referenceDate, asOf);
 
-  const [balanceMap, current, previous, categories, savingsIds, committed] =
+  const [balanceMap, current, previous, categories, transactionAmounts, savingsIds, committed] =
     await Promise.all([
       getAccountBalances(userId),
       flowsFor(userId, range.start, range.end),
       flowsFor(userId, range.prevStart, range.prevEnd),
       categoryBreakdownFor(userId, range.start, range.end),
+      expenseAmountsFor(userId, range.start, range.end),
       savingsAccountIds(userId),
       committedWithin(userId, asOf, 7),
     ]);
@@ -226,6 +242,7 @@ export async function analyzePeriod(
       },
       allTime: { income: allTime.income, expenses: allTime.expenses },
       savingsTotal,
+      transactionAmounts,
     },
     asOf
   );
@@ -237,9 +254,12 @@ export async function analyzePeriod(
 
 export async function forecastForUser(
   userId: string,
+  period?: string | null,
+  referenceDate?: Date | string | null,
   asOf: Date = new Date()
 ): Promise<MetaEnvelope<ForecastOutput>> {
   const monthStart = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
+  const monthEndEod = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0, 23, 59, 59, 999);
   const prevMonthStart = new Date(asOf.getFullYear(), asOf.getMonth() - 1, 1);
   const prevMonthEnd = new Date(
     asOf.getFullYear(),
@@ -251,15 +271,32 @@ export async function forecastForUser(
     999
   );
 
+  // The page's period filter paces the forecast — but an empty window can't
+  // pace anything, so fall back to month-to-date and say so.
+  const range = resolvePeriod(period, referenceDate, asOf);
+  const coversFullMonth = range.start <= monthStart && range.end >= monthEndEod;
+  const windowFlows = await flowsFor(
+    userId,
+    range.start,
+    range.end < asOf ? range.end : asOf
+  );
+  const useMonthPace = windowFlows.count === 0 && !coversFullMonth;
+  const scope = useMonthPace
+    ? undefined
+    : { label: range.label, start: range.start, end: range.end };
+  const windowStart = useMonthPace ? monthStart : range.start;
+  const paceEnd = useMonthPace ? monthEndEod : range.end;
+  const windowEnd = paceEnd < asOf ? paceEnd : asOf;
+
   const [
-    monthTransactions,
+    windowTransactions,
     accounts,
     balanceMap,
     categoryRows,
     prevMonthExpenses,
-    perAccountMonth,
+    perAccountWindow,
   ] = await Promise.all([
-    Transaction.find({ userId, date: { $gte: monthStart, $lte: asOf } })
+    Transaction.find({ userId, date: { $gte: windowStart, $lte: windowEnd } })
       .select("type amount date")
       .lean(),
     Account.find({ userId }).lean(),
@@ -269,7 +306,7 @@ export async function forecastForUser(
         $match: {
           userId: oid(userId),
           type: "expense",
-          date: { $gte: monthStart, $lte: asOf },
+          date: { $gte: windowStart, $lte: windowEnd },
         },
       },
       { $group: { _id: "$categoryId", total: { $sum: "$amount" } } },
@@ -279,7 +316,7 @@ export async function forecastForUser(
     ]),
     flowsFor(userId, prevMonthStart, prevMonthEnd),
     Transaction.aggregate([
-      { $match: { userId: oid(userId), date: { $gte: monthStart, $lte: asOf } } },
+      { $match: { userId: oid(userId), date: { $gte: windowStart, $lte: windowEnd } } },
       {
         $group: {
           _id: "$accountId",
@@ -295,7 +332,7 @@ export async function forecastForUser(
   ]);
 
   const monthFlowsById = new Map(
-    perAccountMonth.map((row) => [String(row._id), row])
+    perAccountWindow.map((row) => [String(row._id), row])
   );
 
   const forecastAccounts: ForecastAccount[] = accounts.map((account) => {
@@ -315,7 +352,7 @@ export async function forecastForUser(
     currentSpend: row.total,
   }));
 
-  const transactions: ForecastTransaction[] = monthTransactions.map((tx) => ({
+  const transactions: ForecastTransaction[] = windowTransactions.map((tx) => ({
     date: tx.date,
     type: tx.type,
     amount: tx.amount,
@@ -327,6 +364,10 @@ export async function forecastForUser(
     accounts: forecastAccounts,
     categories,
     prevMonthExpenses: prevMonthExpenses.expenses,
+    scope,
+    scopeNote: useMonthPace
+      ? `No activity in ${range.label} — pacing from month-to-date instead.`
+      : undefined,
   });
 
   return envelope(output, asOf);
@@ -340,6 +381,9 @@ export interface SimulationRequest {
   amount: number;
   description?: string;
   categoryId?: string;
+  /** Analysis period filter (window for income/expense figures). */
+  period?: string | null;
+  date?: Date | string | null;
 }
 
 export async function simulateForUser(
@@ -350,7 +394,20 @@ export async function simulateForUser(
   const monthStart = new Date(asOf.getFullYear(), asOf.getMonth(), 1);
   const monthEnd = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0, 23, 59, 59, 999);
 
-  const [balanceMap, expectedDocs, committedDocs, monthTransactions, goalDocs] =
+  const range = resolvePeriod(request.period, request.date, asOf);
+  const coversFullMonth = range.start <= monthStart && range.end >= monthEnd;
+  const rangeEnd = range.end < asOf ? range.end : asOf;
+  const windowFlows = await flowsFor(userId, range.start, rangeEnd);
+  // An empty window can't produce honest rates — fall back to month figures.
+  const useMonthFigures = windowFlows.count === 0 && !coversFullMonth;
+  const flowStart = useMonthFigures ? monthStart : range.start;
+  const flowEnd = useMonthFigures ? asOf : rangeEnd;
+  const effectiveLabel = useMonthFigures ? "this month" : scopeLabel(range, asOf);
+  const scopeNote = useMonthFigures
+    ? `No activity in ${range.label} — using month-to-date figures instead.`
+    : undefined;
+
+  const [balanceMap, expectedDocs, committedDocs, windowTransactions, goalDocs] =
     await Promise.all([
       getAccountBalances(userId),
       ExpectedIncome.find({ userId, status: "pending", expectedDate: { $gte: asOf } })
@@ -363,17 +420,17 @@ export async function simulateForUser(
       })
         .select("amount")
         .lean(),
-      Transaction.find({ userId, date: { $gte: monthStart, $lte: asOf } })
+      Transaction.find({ userId, date: { $gte: flowStart, $lte: flowEnd } })
         .select("type amount")
         .lean(),
       Goal.find({ userId, status: "active" }).lean(),
     ]);
 
-  let monthIncome = 0;
-  let monthExpenses = 0;
-  for (const tx of monthTransactions) {
-    if (tx.type === "income") monthIncome += tx.amount;
-    else if (tx.type === "expense") monthExpenses += tx.amount;
+  let windowIncome = 0;
+  let windowExpenses = 0;
+  for (const tx of windowTransactions) {
+    if (tx.type === "income") windowIncome += tx.amount;
+    else if (tx.type === "expense") windowExpenses += tx.amount;
   }
 
   const input: SimulationInput = {
@@ -383,9 +440,10 @@ export async function simulateForUser(
     totalBalance: sum(balanceMap.values()),
     expectedIncome: expectedDocs.reduce((total, row) => total + row.amount, 0),
     committedExpenses: committedDocs.reduce((total, row) => total + row.amount, 0),
-    monthIncome,
-    monthExpenses,
-    dayOfMonth: asOf.getDate(),
+    monthIncome: windowIncome,
+    monthExpenses: windowExpenses,
+    dayOfMonth: elapsedDaysIn(flowStart, flowEnd, asOf),
+    scopeLabel: effectiveLabel,
     goals: goalDocs.map((goal) => ({
       name: goal.name,
       targetAmount: goal.targetAmount,
@@ -394,7 +452,7 @@ export async function simulateForUser(
     })),
   };
 
-  return envelope(simulatePurchase(input), asOf);
+  return envelope({ ...simulatePurchase(input), scopeNote }, asOf);
 }
 
 /* ────────────────────────────────────────────────────────── *
@@ -403,12 +461,18 @@ export async function simulateForUser(
 
 export async function patternsForUser(
   userId: string,
+  period?: string | null,
+  referenceDate?: Date | string | null,
   asOf: Date = new Date()
 ): Promise<MetaEnvelope<PatternsResult>> {
-  const windowStart = new Date(asOf);
-  windowStart.setMonth(windowStart.getMonth() - 3);
+  // Detection (recurring/payday/forgotten) always needs history; statistics
+  // are scoped to the selected window via detectPatterns' third argument.
+  const range = resolvePeriod(period, referenceDate, asOf);
+  const lookback = new Date(asOf);
+  lookback.setMonth(lookback.getMonth() - 3);
+  const fetchFrom = range.prevStart < lookback ? range.prevStart : lookback;
 
-  const transactions = await Transaction.find({ userId, date: { $gte: windowStart } })
+  const transactions = await Transaction.find({ userId, date: { $gte: fetchFrom } })
     .populate("categoryId", "name color icon")
     .sort({ date: 1 })
     .lean();
@@ -421,15 +485,28 @@ export async function patternsForUser(
     categoryId: tx.categoryId as PatternTransaction["categoryId"],
   }));
 
-  return envelope(detectPatterns(fixtures, asOf), asOf);
+  const result = detectPatterns(fixtures, asOf, range);
+  return envelope(
+    {
+      ...result,
+      window: { key: range.key, label: range.label, prevLabel: range.prevLabel },
+    },
+    asOf
+  );
 }
 
 /* ────────────────────────────────────────────────────────── *
  *  /api/intelligence/ask — snapshot + router
  * ────────────────────────────────────────────────────────── */
 
+export interface AskFilterInput {
+  period?: string | null;
+  date?: Date | string | null;
+}
+
 export async function buildAskSnapshot(
   userId: string,
+  filter: AskFilterInput = {},
   asOf: Date = new Date()
 ): Promise<AskSnapshot> {
   const [balanceMap, accounts, expectedDocs, reminderDocs, goalDocs, budgetDocs] =
@@ -461,6 +538,29 @@ export async function buildAskSnapshot(
   const dayOfMonth = asOf.getDate();
   const daysInMonth = new Date(asOf.getFullYear(), asOf.getMonth() + 1, 0).getDate();
   const dailySpendRate = dayOfMonth > 0 ? monthFlows.expenses / dayOfMonth : 0;
+
+  // The page's active period filter: Ask answers bare questions against it.
+  const filterRange =
+    filter.period || filter.date ? resolvePeriod(filter.period, filter.date, asOf) : null;
+  const filterFlows = filterRange
+    ? await flowsFor(userId, filterRange.start, filterRange.end)
+    : null;
+
+  // Recent transactions backing "list …" answers (itemised, not totals).
+  const recentDocs = await Transaction.find({ userId })
+    .sort({ date: -1, _id: -1 })
+    .limit(500)
+    .populate("categoryId", "name")
+    .populate("accountId", "name")
+    .lean();
+  const recent: AskTx[] = recentDocs.map((tx) => ({
+    type: tx.type as AskTx["type"],
+    amount: tx.amount,
+    date: tx.date,
+    description: tx.description,
+    category: (tx.categoryId as { name?: string } | null)?.name,
+    account: (tx.accountId as { name?: string } | null)?.name,
+  }));
 
   const budgets = budgetDocs.map((budget) => {
     let spent = 0;
@@ -520,12 +620,29 @@ export async function buildAskSnapshot(
       dailySpendRate,
       projectedMonthEnd: dailySpendRate * daysInMonth,
     },
+    filter:
+      filterRange && filterFlows
+        ? {
+            key: filterRange.key,
+            label: filterRange.label,
+            start: filterRange.start,
+            end: filterRange.end,
+            flows: filterFlows,
+          }
+        : undefined,
+    recent,
   };
+}
+
+export interface AskOptions extends AskFilterInput {
+  /** Previous user questions, oldest first (conversation context). */
+  history?: string[];
 }
 
 export interface AskResponse {
   question: string;
   answer: string;
+  suggestions: string[];
   context: Record<string, unknown>;
   timestamp: string;
 }
@@ -533,14 +650,20 @@ export interface AskResponse {
 export async function ask(
   userId: string,
   question: string,
+  options: AskOptions = {},
   asOf: Date = new Date()
 ): Promise<MetaEnvelope<AskResponse>> {
-  const snapshot = await buildAskSnapshot(userId, asOf);
-  const result = answerQuestion(question, snapshot);
+  const snapshot = await buildAskSnapshot(userId, options, asOf);
+  const history = (options.history || [])
+    .filter((entry): entry is string => typeof entry === "string")
+    .slice(-12)
+    .map((entry) => entry.slice(0, 300));
+  const result = answerQuestion(question, snapshot, history);
   return envelope(
     {
       question,
       answer: result.answer,
+      suggestions: result.suggestions || [],
       context: result.data,
       timestamp: asOf.toISOString(),
     },

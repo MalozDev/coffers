@@ -185,3 +185,17 @@ export function resolvePeriod(
     progress: isCurrent ? elapsedFraction(start, end, now) : 1,
   };
 }
+
+/**
+ * Natural scope phrasing for a resolved window — used by wording in the
+ * simulation and forecast: "today" | "yesterday" | "this week" |
+ * "this month" (when the window covers now) or the window's label.
+ */
+export function scopeLabel(range: PeriodRange, now: Date = new Date()): string {
+  if (range.key === "today") return "today";
+  if (range.key === "yesterday") return "yesterday";
+  const coversNow = now >= range.start && now <= range.end;
+  if (range.key === "week") return coversNow ? "this week" : range.label;
+  if (range.key === "month") return coversNow ? "this month" : range.label;
+  return range.label;
+}

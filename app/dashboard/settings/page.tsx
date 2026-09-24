@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { User, Wallet, Tag, LogOut, ArrowRightLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { clearApiCache } from "@/lib/client/api-cache";
 
 interface Account { _id: string; name: string; type: string; currentBalance: number }
 
@@ -195,6 +196,7 @@ export default function SettingsPage() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
+    clearApiCache();
     window.location.replace("/login");
   };
 
