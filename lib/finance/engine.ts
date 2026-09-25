@@ -572,7 +572,7 @@ export async function buildAskSnapshot(
     } else if (budget.items && budget.items.length > 0) {
       spent = budget.items
         .filter((item) => item.bought)
-        .reduce((total, item) => total + item.price, 0);
+        .reduce((total, item) => total + (Number(item.price) || 0), 0);
     }
     return { name: budget.name, amount: budget.amount, spent };
   });

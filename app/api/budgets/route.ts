@@ -25,9 +25,9 @@ export async function GET(request: NextRequest) {
       budgets.map(async (budget) => {
         // Shopping-list budgets: item totals + status (legacy docs have no status)
         const items = budget.items || [];
-        const itemsTotal = items.reduce((s, it) => s + it.price, 0);
+        const itemsTotal = items.reduce((s, it) => s + (Number(it.price) || 0), 0);
         const markedItems = items.filter((it) => it.bought);
-        const markedTotal = markedItems.reduce((s, it) => s + it.price, 0);
+        const markedTotal = markedItems.reduce((s, it) => s + (Number(it.price) || 0), 0);
         const status = budget.status || "active";
 
         // Shopping-list budgets without a legacy category limit
@@ -144,15 +144,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Optional starting items: [{ name, price }]
+    // Optional starting items: [{ name, price }] — price may be omitted when
+    // the cost is still an estimate; it gets confirmed at checkout.
     const cleanItems = Array.isArray(items)
       ? items
-          .filter((i: { name?: string; price?: number }) => i?.name && Number(i?.price) > 0)
-          .map((i: { name: string; price: number }) => ({
-            name: String(i.name).trim().slice(0, 100),
-            price: Number(i.price),
-            addedAt: new Date(),
-          }))
+          .filter((i: { name?: string; price?: number | string }) => i?.name && String(i.name).trim())
+          .map((i: { name: string; price?: number | string }) => {
+            const price = i.price === undefined || i.price === null || i.price === "" ? NaN : Number(i.price);
+            return {
+              name: String(i.name).trim().slice(0, 100),
+              ...(Number.isFinite(price) && price > 0 ? { price } : {}),
+              addedAt: new Date(),
+            };
+          })
       : [];
 
     await connectToDatabase();

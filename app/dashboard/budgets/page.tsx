@@ -76,6 +76,12 @@ function formatK(n: number) {
   return `K${Number(n || 0).toLocaleString()}`;
 }
 
+/** A checkout price entry: empty/invalid input counts as "still unpriced". */
+function priceOf(raw: string | undefined) {
+  const n = parseFloat(raw ?? "");
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function fmtTs(d?: string) {
   if (!d) return "";
   const date = new Date(d);
@@ -100,14 +106,14 @@ function accountNameOf(budget: Budget): string {
 /** Recompute the derived totals the GET route normally attaches. */
 function withTotals(b: Budget): Budget {
   const items = b.items || [];
-  const itemsTotal = items.reduce((s, i) => s + i.price, 0);
+  const itemsTotal = items.reduce((s, i) => s + (Number(i.price) || 0), 0);
   const marked = items.filter((i) => i.bought);
   return {
     ...b,
     items,
     itemsTotal,
     markedCount: marked.length,
-    markedTotal: marked.reduce((s, i) => s + i.price, 0),
+    markedTotal: marked.reduce((s, i) => s + (Number(i.price) || 0), 0),
   };
 }
 
@@ -155,6 +161,9 @@ export default function BudgetsPage() {
   const [closing, setClosing] = useState(false);
   const [lastDeduct, setLastDeduct] = useState<string | null>(null);
   const [closeError, setCloseError] = useState<string | null>(null);
+  // Checkout price confirmation: estimates often differ from the real price,
+  // so each checked item's amount is editable right before the close.
+  const [checkoutPrices, setCheckoutPrices] = useState<Record<string, string>>({});
 
   // Delete (closed budgets only)
   const [deleteTarget, setDeleteTarget] = useState<Budget | null>(null);
@@ -316,9 +325,16 @@ export default function BudgetsPage() {
   // ── Add item (modal) ──────────────────────────────────────
   const handleAddItems = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Price is optional — leave it blank and it gets confirmed at checkout.
     const items = itemRows
-      .map((row) => ({ name: row.name.trim(), price: parseFloat(row.price) }))
-      .filter((row) => row.name && row.price > 0);
+      .map((row) => {
+        const price = parseFloat(row.price);
+        return {
+          name: row.name.trim(),
+          ...(Number.isFinite(price) && price > 0 ? { price } : {}),
+        };
+      })
+      .filter((row) => row.name);
     if (!items.length) return;
     setAdding(true);
     const result = await patch({ action: "add_items", items });
@@ -340,7 +356,17 @@ export default function BudgetsPage() {
     setError(null);
     setCloseError(null);
     setLastDeduct(null);
-    const toDeduct = selected?.markedTotal || 0;
+    // Seed the checkout form with the estimate for every checked item so the
+    // real price can be confirmed (or corrected) before anything is charged.
+    const seeded = Object.fromEntries(
+      (selected?.items || [])
+        .filter((i) => i.bought)
+        .map((i) => [i._id, i.price ? String(i.price) : ""])
+    );
+    setCheckoutPrices(seeded);
+    const toDeduct = (selected?.items || [])
+      .filter((i) => i.bought)
+      .reduce((sum, i) => sum + priceOf(seeded[i._id]), 0);
     const preferred = accountIdOf(selected as Budget) || accountId || accounts[0]?._id || "";
     const preferredBalance =
       accounts.find((a) => a._id === preferred)?.currentBalance || 0;
@@ -358,7 +384,17 @@ export default function BudgetsPage() {
     if (!viewId) return;
     setClosing(true);
     setCloseError(null);
-    const result = await patch({ action: "close", accountId: accountId || undefined });
+    const prices = (selected?.items || [])
+      .filter((i) => i.bought)
+      .map((i) => ({
+        itemId: i._id,
+        price: priceOf(checkoutPrices[i._id] ?? (i.price ? String(i.price) : "")),
+      }));
+    const result = await patch({
+      action: "close",
+      accountId: accountId || undefined,
+      prices,
+    });
     setClosing(false);
     if (result?.ok) {
       setCloseOpen(false);
@@ -423,14 +459,24 @@ export default function BudgetsPage() {
       accounts.find((a) => a._id === accountIdOf(selected))?.name ||
       "Not set";
     const closeAccount = accounts.find((a) => a._id === accountId);
+    // Live checkout numbers — the price inputs in the close dialog may have
+    // been edited away from the stored estimate.
+    const checkedItems = items.filter((i) => i.bought);
+    const checkoutTotal = checkedItems.reduce(
+      (sum, i) => sum + priceOf(checkoutPrices[i._id] ?? (i.price ? String(i.price) : "")),
+      0
+    );
+    const unpricedChecked = checkedItems.filter(
+      (i) => priceOf(checkoutPrices[i._id] ?? (i.price ? String(i.price) : "")) <= 0
+    );
     const closeAccountShort =
       !!closeAccount &&
-      markedTotal > 0 &&
-      (closeAccount.currentBalance || 0) < markedTotal;
+      checkoutTotal > 0 &&
+      (closeAccount.currentBalance || 0) < checkoutTotal;
     const noAccountCovers =
-      markedTotal > 0 &&
+      checkoutTotal > 0 &&
       accounts.length > 0 &&
-      !accounts.some((a) => (a.currentBalance || 0) >= markedTotal);
+      !accounts.some((a) => (a.currentBalance || 0) >= checkoutTotal);
 
     return (
       <div className="space-y-4">
@@ -590,7 +636,13 @@ export default function BudgetsPage() {
                       item.bought ? "text-muted-foreground" : "text-foreground"
                     }`}
                   >
-                    {formatK(item.price)}
+                    {item.price ? (
+                      formatK(item.price)
+                    ) : (
+                      <span className="text-[11px] font-normal text-muted-foreground">
+                        set at checkout
+                      </span>
+                    )}
                   </span>
                 </li>
               ))}
@@ -655,7 +707,9 @@ export default function BudgetsPage() {
             <DialogHeader>
               <DialogTitle>Add budget item</DialogTitle>
               <DialogDescription>
-                Items you check off are deducted when the budget closes.
+                Items you check off are deducted when the budget closes. Leave
+                the amount blank now if you don't know it yet — you'll confirm
+                the real price at checkout.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddItems} className="space-y-3">
@@ -679,7 +733,7 @@ export default function BudgetsPage() {
                       type="number"
                       step="0.01"
                       min="0.01"
-                      placeholder="Amount"
+                      placeholder="Amount (optional)"
                       value={row.price}
                       onChange={(e) =>
                         setItemRows((current) =>
@@ -718,6 +772,10 @@ export default function BudgetsPage() {
               >
                 <Plus className="h-4 w-4" /> Add another item
               </Button>
+              <p className="text-[11px] text-muted-foreground">
+                Not sure of the price? Skip it — you'll confirm the real amount
+                for each checked item at checkout.
+              </p>
               <div className="flex gap-2 pt-1">
                 <Button
                   type="button"
@@ -739,10 +797,11 @@ export default function BudgetsPage() {
         <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Close budget</DialogTitle>
+              <DialogTitle>Checkout &amp; close budget</DialogTitle>
               <DialogDescription>
-                Only checked items count as spending. Their total is deducted from
-                the payment account.
+                Confirm what each checked item actually cost — estimates often
+                differ from the till. Only checked items are deducted from the
+                payment account.
               </DialogDescription>
             </DialogHeader>
 
@@ -752,8 +811,55 @@ export default function BudgetsPage() {
                   {markedCount} of {items.length} items checked
                 </span>
                 <span className="text-lg font-mono font-bold">
-                  {formatK(markedTotal)}
+                  {formatK(checkoutTotal)}
                 </span>
+              </div>
+
+              {/* Price confirmation — the estimate can be corrected here */}
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-xs font-semibold">Confirm prices</Label>
+                  <span className="text-[11px] text-muted-foreground">
+                    edit to the real amount
+                  </span>
+                </div>
+                {checkedItems.length === 0 ? (
+                  <p className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
+                    No items checked — nothing will be charged.
+                  </p>
+                ) : (
+                  checkedItems.map((item) => (
+                    <div key={item._id} className="flex items-center gap-2">
+                      <span className="flex-1 truncate text-sm text-foreground">
+                        {item.name}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {item.price ? `est. ${formatK(item.price)}` : "no estimate"}
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        placeholder="Price"
+                        aria-label={`Actual price for ${item.name}`}
+                        value={checkoutPrices[item._id] ?? ""}
+                        onChange={(e) =>
+                          setCheckoutPrices((current) => ({
+                            ...current,
+                            [item._id]: e.target.value,
+                          }))
+                        }
+                        className="h-9 w-24 font-mono shrink-0"
+                      />
+                    </div>
+                  ))
+                )}
+                {unpricedChecked.length > 0 && (
+                  <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+                    Add a price for {unpricedChecked.map((i) => i.name).join(", ")} —
+                    every checked item needs an amount before checkout.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -776,7 +882,7 @@ export default function BudgetsPage() {
                   })}
                 </select>
                 <p className="text-[11px] text-muted-foreground">
-                  {formatK(markedTotal)} will be deducted from this account.
+                  {formatK(checkoutTotal)} will be deducted from this account.
                 </p>
                 {closeAccountShort && closeAccount && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
@@ -786,7 +892,7 @@ export default function BudgetsPage() {
                 )}
                 {noAccountCovers && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                    No account holds {formatK(markedTotal)} yet. Add funds before
+                    No account holds {formatK(checkoutTotal)} yet. Add funds before
                     closing this budget.
                   </p>
                 )}
@@ -813,11 +919,12 @@ export default function BudgetsPage() {
                   disabled={
                     closing ||
                     (markedCount > 0 && !accountId) ||
+                    unpricedChecked.length > 0 ||
                     closeAccountShort ||
                     noAccountCovers
                   }
                 >
-                  {closing ? "Closing..." : "Close budget"}
+                  {closing ? "Closing..." : "Confirm & close"}
                 </Button>
               </div>
             </div>

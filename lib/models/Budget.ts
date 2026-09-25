@@ -3,7 +3,8 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IBudgetItem {
   _id: mongoose.Types.ObjectId;
   name: string;
-  price: number;
+  /** Estimated price — optional. Unpriced items are priced at checkout. */
+  price?: number;
   bought: boolean;
   boughtAt?: Date;
   transactionId?: mongoose.Types.ObjectId;
@@ -35,9 +36,11 @@ const BudgetItemSchema = new Schema<IBudgetItem>(
       trim: true,
       maxlength: [100, "Item name cannot exceed 100 characters"],
     },
+    /* Optional: an item can be added before its price is known, then the
+       real price is confirmed/edited at checkout. */
     price: {
       type: Number,
-      required: [true, "Item price is required"],
+      required: false,
       min: [0.01, "Item price must be greater than 0"],
     },
     bought: { type: Boolean, default: false },
