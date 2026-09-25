@@ -707,21 +707,43 @@ function SimulateTab() {
 }
 
 // ─── Ask Coffers Tab ───────────────────────────────────────
+/** Offline fallback shown until the personalised greeting arrives. */
+const GREETING_SEED = {
+  role: "coffers" as const,
+  text: "Ask me anything — spending, balances, bills, or goals.",
+  suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
+};
+
 function AskTab() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Array<{
     role: "user" | "coffers";
     text: string;
     suggestions?: string[];
-  }>>([
-    {
-      role: "coffers",
-      text: "Ask me anything — spending, balances, bills, or goals.",
-      suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
-    },
-  ]);
+  }>>([GREETING_SEED]);
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Ask greets back — time of day, your name, live balance — so the first
+  // line is a real answer, not a static blurb. Falls back to the seed.
+  const loadGreeting = () => {
+    fetchJson("/api/intelligence/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: "hi" }),
+    })
+      .then((data: { answer?: string; suggestions?: string[] }) => {
+        if (!data?.answer) return;
+        setMessages((prev) =>
+          prev.length === 1 && prev[0].role === "coffers"
+            ? [{ role: "coffers", text: data.answer as string, suggestions: data.suggestions || [] }]
+            : prev
+        );
+      })
+      .catch(() => {});
+  };
+
+  useEffect(loadGreeting, []);
 
   // The chat is its own scroller — keep the newest answer in view so the
   // user never has to scroll past old questions to find it.
@@ -765,14 +787,9 @@ function AskTab() {
   };
 
   const resetConversation = () => {
-    setMessages([
-      {
-        role: "coffers",
-        text: "Ask me anything — spending, balances, bills, or goals.",
-        suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
-      },
-    ]);
+    setMessages([GREETING_SEED]);
     setQuestion("");
+    loadGreeting();
   };
 
   return (

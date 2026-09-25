@@ -29,6 +29,8 @@ export interface AskTx {
 
 export interface AskSnapshot {
   now: Date;
+  /** The account holder's first name — lets Ask greet them back. */
+  name?: string;
   balance: {
     total: number;
     accounts: { name: string; balance: number }[];
@@ -69,6 +71,10 @@ export interface AskSnapshot {
     end: Date | string;
     flows: FlowTotals;
   };
+  /** The window directly before each preset — powers comparisons. */
+  prevDay?: FlowTotals;
+  prevWeek?: FlowTotals;
+  prevMonth?: FlowTotals;
   /** Recent transactions backing list/detail answers. */
   recent?: AskTx[];
 }
@@ -89,8 +95,13 @@ export interface QuestionAnalysis {
 
 type Intent =
   | "greeting"
+  | "thanks"
+  | "smalltalk"
   | "help"
   | "affordability"
+  | "compare"
+  | "categories"
+  | "health"
   | "list"
   | "spending"
   | "income"
@@ -190,6 +201,52 @@ function intentOf(question: string): Intent | null {
   if (has(q, "can i afford", "can i buy", "should i buy", "can i purchase", "afford")) {
     return "affordability";
   }
+  // Comparisons win before spending/list — "did I spend more than last week?"
+  // contains "spend" but is really asking for a comparison.
+  const comparative = has(
+    q,
+    "compare",
+    "comparison",
+    "compared",
+    "versus",
+    " vs ",
+    "more than",
+    "less than",
+    "higher than",
+    "lower than",
+    "bigger than",
+    "smaller than",
+    "better than",
+    "worse than",
+    "difference between",
+    "than last",
+    "than the week before",
+    "than the month before",
+    "than yesterday",
+    "than today",
+    "up from",
+    "down from"
+  );
+  const hasSubject = has(
+    q,
+    "spend",
+    "spent",
+    "spending",
+    "income",
+    "earn",
+    "salary",
+    "money",
+    "budget",
+    "save",
+    "saving",
+    "balance",
+    "month",
+    "week",
+    "year",
+    "today",
+    "yesterday"
+  );
+  if (comparative && hasSubject) return "compare";
   if (
     has(
       q,
@@ -214,6 +271,27 @@ function intentOf(question: string): Intent | null {
   ) {
     return "list";
   }
+  // Category questions — "where did I spend the most?", "how much on food?"
+  if (
+    has(
+      q,
+      "category",
+      "categories",
+      "where did i spend",
+      "where is my money going",
+      "where's my money going",
+      "what did i spend on",
+      "spend on",
+      "spent on",
+      "how much on",
+      "top spend",
+      "biggest spend",
+      "biggest category"
+    ) ||
+    (has(q, "the most", "most spent") && has(q, "spend", "spent", "spending", "cost"))
+  ) {
+    return "categories";
+  }
   if (has(q, "spend", "spent", "spending", "expense", "buy", "bought", "purchased", "cost me", "outgoing")) {
     return "spending";
   }
@@ -225,10 +303,38 @@ function intentOf(question: string): Intent | null {
   if (has(q, "upcoming", "coming up", "due", "owe", "reminder", "bill")) return "upcoming";
   if (has(q, "save", "saving", "savings")) return "savings";
   if (has(q, "balance", "how much", "money do i have", "account", "how rich")) return "balance";
+  // A one-line health check over everything the engine knows.
+  if (
+    has(
+      q,
+      "how am i doing",
+      "how am i looking",
+      "how am i tracking",
+      "how's my money",
+      "how is my money",
+      "financial health",
+      "health check",
+      "how healthy",
+      "am i doing ok",
+      "am i doing okay",
+      "how are my finances",
+      "how do my finances",
+      "money check"
+    )
+  ) {
+    return "health";
+  }
   // Greetings only win when nothing else matched — "hey, list my spending"
   // must still be a list request.
   if (/^(hi|hello|hey|yo|hiya|good (morning|afternoon|evening))\b/.test(q) && words <= 4) {
     return "greeting";
+  }
+  if (has(q, "thank", "thanks", "cheers", "appreciate", "much obliged")) return "thanks";
+  if (
+    has(q, "how are you", "how's it going", "hows it going", "hows life", "you ok", "you okay", "are you ok") ||
+    /^(bye|goodbye|see you|see ya|cya|good night|goodnight)\b/.test(q)
+  ) {
+    return "smalltalk";
   }
   return null;
 }
@@ -271,6 +377,11 @@ export function classifyQuestion(question: string): QuestionAnalysis {
 /** Suggested follow-up chips per intent (rendered under the reply). */
 const SUGGESTIONS: Record<Intent, string[]> = {
   greeting: ["What did I spend today?", "What's my balance?", "What's coming up?"],
+  thanks: ["How am I doing?", "What did I spend today?", "What's coming up?"],
+  smalltalk: ["How am I doing?", "What's my balance?", "What did I spend today?"],
+  compare: ["What did I spend this month?", "How am I doing?", "What's my balance?"],
+  categories: ["Where did I spend the most?", "List my spending this month", "What's my balance?"],
+  health: ["What's my savings rate?", "What's coming up?", "How are my goals?"],
   help: ["What did I spend today?", "Can I afford K5,000?", "How are my goals?"],
   affordability: ["What's coming up?", "How are my goals?", "What's my balance?"],
   list: ["What about this week?", "What's my balance?", "What's coming up?"],
@@ -291,6 +402,9 @@ const MENU = [
   "What's my budget status?",
   "What's coming up?",
 ];
+
+/** Intents that are never inherited by a follow-up turn. */
+const SMALL_TALK: Set<Intent> = new Set(["greeting", "thanks", "smalltalk", "help"]);
 
 /* ── period-scoped answers ────────────────────────────────── */
 
@@ -494,6 +608,155 @@ function listAnswer(
 
 /* ── fixed-topic answers ──────────────────────────────────── */
 
+/* ── conversational answers ───────────────────────────── */
+
+/**
+ * COMPARE intent — "did I spend more this week than last week?"
+ * Current window versus the window directly before it (engine-provided).
+ */
+function compareAnswer(
+  question: string,
+  period: PeriodKey | null,
+  snapshot: AskSnapshot
+): AskAnswer {
+  const win = resolveWindow(period, snapshot);
+  const wantIncome = has(question, "income", "earn", "salary", "made", "money in", "received");
+
+  const previous =
+    win.key === "today"
+      ? snapshot.periods.yesterday
+      : win.key === "yesterday"
+      ? snapshot.prevDay
+      : win.key === "week"
+      ? snapshot.prevWeek
+      : snapshot.prevMonth;
+  const previousLabel =
+    win.key === "today"
+      ? "yesterday"
+      : win.key === "yesterday"
+      ? "the day before"
+      : win.key === "week"
+      ? "the week before"
+      : "last month";
+
+  const current = wantIncome ? win.flows.income : win.flows.expenses;
+  const before = previous ? (wantIncome ? previous.income : previous.expenses) : null;
+  const verb = wantIncome ? "earned" : "spent";
+  const phrase = spendPhrase(win);
+
+  if (before === null) {
+    return {
+      answer: `You ${verb} ${formatK(current)} ${phrase}. I don't have an earlier window to compare it with yet.`,
+      data: { period: win.key, current, previous: null },
+      suggestions: SUGGESTIONS.compare,
+    };
+  }
+
+  const diff = current - before;
+  const pct = before > 0 ? Math.round((diff / before) * 100) : null;
+  const comparison =
+    diff === 0
+      ? `the same as ${previousLabel}`
+      : before === 0
+      ? `a fresh start — nothing recorded ${previousLabel}`
+      : diff > 0
+      ? `${formatK(diff)} more than ${previousLabel}${pct !== null ? ` (${pct}% up)` : ""}`
+      : `${formatK(Math.abs(diff))} less than ${previousLabel}${
+          pct !== null ? ` (${Math.abs(pct)}% down)` : ""
+        }`;
+
+  return {
+    answer: `You ${verb} ${formatK(current)} ${phrase} — ${comparison}.`,
+    data: { period: win.key, current, previous: before, difference: diff },
+    suggestions: SUGGESTIONS.compare,
+  };
+}
+
+/**
+ * CATEGORIES intent — "where did I spend the most?" / "how much on food?"
+ * Shares are month-scoped, matching the breakdown on the analysis page.
+ */
+function categoriesAnswer(question: string, snapshot: AskSnapshot): AskAnswer {
+  const cats = [...snapshot.categoriesThisMonth].sort((a, b) => b.total - a.total);
+  const total = snapshot.month.expenses || cats.reduce((sum, cat) => sum + cat.total, 0);
+  const shareOf = (value: number) => (total > 0 ? `${round((value / total) * 100)}%` : "0%");
+
+  if (cats.length === 0) {
+    return {
+      answer:
+        "Nothing is categorised yet this month. Tag your expenses and I'll break them down here.",
+      data: { period: "month", categories: [] },
+      suggestions: SUGGESTIONS.categories,
+    };
+  }
+
+  const named = cats.find((cat) => question.includes(cat.name.toLowerCase()));
+  if (named) {
+    return {
+      answer: `${named.name}: ${formatK(named.total)} this month — ${shareOf(
+        named.total
+      )} of everything you spent.`,
+      data: {
+        period: "month",
+        category: named.name,
+        total: named.total,
+        share: shareOf(named.total),
+      },
+      suggestions: SUGGESTIONS.categories,
+    };
+  }
+
+  const top = cats.slice(0, 3);
+  return {
+    answer: `Your biggest categories this month:\n${top
+      .map((cat) => `• ${cat.name} ${formatK(cat.total)} (${shareOf(cat.total)})`)
+      .join("\n")}`,
+    data: {
+      period: "month",
+      categories: top.map((cat) => ({ name: cat.name, total: cat.total })),
+    },
+    suggestions: SUGGESTIONS.categories,
+  };
+}
+
+/** HEALTH intent — "how am I doing?" One short report card, engine numbers. */
+function healthAnswer(snapshot: AskSnapshot): AskAnswer {
+  const { month, balance, committed, goals } = snapshot;
+  const rate =
+    month.income > 0 ? ((month.income - month.expenses) / month.income) * 100 : 0;
+  const top = [...snapshot.categoriesThisMonth].sort((a, b) => b.total - a.total)[0];
+
+  const lines = [
+    `• Balance: ${formatK(balance.total)}`,
+    `• This month: ${formatK(month.income)} in, ${formatK(
+      month.expenses
+    )} out — you kept ${round(rate)}%`,
+    `• Pace: about ${formatK(month.projectedMonthEnd)} by month-end`,
+    committed.total > 0 ? `• Coming up: ${formatK(committed.total)} due` : null,
+    goals.length > 0
+      ? `• Goals: ${goals.length} active, first target ${formatK(goals[0].targetAmount)}`
+      : null,
+    top ? `• Biggest category: ${top.name} at ${formatK(top.total)}` : null,
+  ].filter((line): line is string => !!line);
+
+  const verdict =
+    rate >= 20
+      ? "On track 👍"
+      : month.income > 0
+      ? "Watch the spending — under 20% of income is being kept."
+      : "I need income records before I can judge your pace.";
+
+  return {
+    answer: `Here's your money in one place:\n${lines.join("\n")}\n\n${verdict} Ask about any line for detail.`,
+    data: {
+      balance: balance.total,
+      savingsRate: round(rate),
+      projected: month.projectedMonthEnd,
+    },
+    suggestions: SUGGESTIONS.health,
+  };
+}
+
 function goalAnswer(snapshot: AskSnapshot): AskAnswer {
   if (snapshot.goals.length === 0) {
     return {
@@ -626,13 +889,84 @@ function incomeAnswer(snapshot: AskSnapshot): AskAnswer {
   };
 }
 
-/** A ready-to-render welcome reply (also used by the chat UI on mount). */
-export function greetingAnswer(): AskAnswer {
+/** Time-of-day salutation, deterministic off the snapshot clock. */
+function salutationFor(now: Date): string {
+  const hour = now.getHours();
+  if (hour >= 5 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 17) return "Afternoon";
+  if (hour >= 17 && hour < 22) return "Evening";
+  return "Hey";
+}
+
+function firstName(name?: string): string | null {
+  const trimmed = (name || "").trim();
+  return trimmed ? trimmed.split(/\s+/)[0] : null;
+}
+
+/**
+ * A ready-to-render welcome reply (also used by the chat UI on mount).
+ * Greets back — time of day, the user's first name, and a live hook so the
+ * first line already carries a real number.
+ */
+export function greetingAnswer(snapshot?: AskSnapshot): AskAnswer {
+  const salutation = snapshot ? salutationFor(snapshot.now) : "Hey";
+  const name = snapshot ? firstName(snapshot.name) : null;
+  const hello = name ? `${salutation}, ${name}` : salutation;
+
+  if (!snapshot) {
+    return {
+      answer: `${hello} 👋 Ask me anything — spending, balances, bills, or goals.`,
+      data: { intent: "greeting" },
+      suggestions: SUGGESTIONS.greeting,
+    };
+  }
+
+  const { balance, periods } = snapshot;
+  const todaySpend =
+    periods.today.expenses > 0
+      ? `${formatK(periods.today.expenses)} spent today`
+      : "nothing spent yet today";
   return {
-    answer:
-      "Ask me anything — spending, balances, bills, or goals.",
-    data: { intent: "greeting" },
+    answer: `${hello} 👋 You have ${formatK(balance.total)} available, ${todaySpend}. What would you like to check?`,
+    data: {
+      intent: "greeting",
+      balance: balance.total,
+      todayExpenses: periods.today.expenses,
+    },
     suggestions: SUGGESTIONS.greeting,
+  };
+}
+
+function thanksAnswer(): AskAnswer {
+  return {
+    answer: "Happy to help 🙂 Ask me anything else — spending, bills, goals or affordability.",
+    data: { intent: "thanks" },
+    suggestions: SUGGESTIONS.thanks,
+  };
+}
+
+function smalltalkAnswer(question: string, snapshot: AskSnapshot): AskAnswer {
+  if (/^(bye|goodbye|see you|see ya|cya|good night|goodnight)\b/.test(question)) {
+    return {
+      answer: "See you 👋 Your numbers will be right here next time.",
+      data: { intent: "smalltalk" },
+      suggestions: SUGGESTIONS.smalltalk,
+    };
+  }
+  const rate =
+    snapshot.month.income > 0
+      ? round(((snapshot.month.income - snapshot.month.expenses) / snapshot.month.income) * 100)
+      : 0;
+  return {
+    answer: `All good — running on your latest numbers: ${formatK(
+      snapshot.balance.total
+    )} available and a ${rate}% savings rate this month. What should we look at?`,
+    data: {
+      intent: "smalltalk",
+      balance: snapshot.balance.total,
+      savingsRate: rate,
+    },
+    suggestions: SUGGESTIONS.smalltalk,
   };
 }
 
@@ -710,18 +1044,35 @@ export function answerQuestion(
   let period = analysis.period;
 
   // Conversation context: a bare follow-up inherits the previous turn.
+  // Small talk never carries over — "thanks" must not hijack "and this week?".
   const previous = history.length > 0 ? normalize(history[history.length - 1]) : null;
   if (previous) {
-    if (intent === null) intent = intentOf(previous);
+    const inherited = intentOf(previous);
+    if (inherited && !SMALL_TALK.has(inherited)) intent = inherited;
     if (period === null) period = periodOf(previous);
   }
 
-  if (intent === "greeting") return greetingAnswer();
+  if (intent === "greeting") return greetingAnswer(snapshot);
   if (intent === "help") return helpAnswer();
+  if (intent === "thanks") return thanksAnswer();
+  if (intent === "smalltalk") return smalltalkAnswer(q, snapshot);
+
+  // A period with no intent is a spending question — "and this week?" on
+  // its own (or after small talk) still answers for that window.
+  if (intent === null && period !== null) intent = "spending";
 
   if (intent === null && !analysis.financial) return outOfScopeAnswer();
 
   switch (intent) {
+    case "compare":
+      return compareAnswer(q, period, snapshot);
+
+    case "categories":
+      return categoriesAnswer(q, snapshot);
+
+    case "health":
+      return healthAnswer(snapshot);
+
     case "affordability": {
       const amount = parseAmount(q);
       if (amount > 0) {

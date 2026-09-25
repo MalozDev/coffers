@@ -13,6 +13,7 @@ const NOW = new Date(2026, 8, 24, 12, 0, 0, 0);
 function snapshot(): AskSnapshot {
   return {
     now: NOW,
+    name: "Amos Banda",
     balance: {
       total: 15000,
       accounts: [
@@ -31,6 +32,9 @@ function snapshot(): AskSnapshot {
       week: flows({ expenses: 900, expenseCount: 5 }),
       month: flows({ income: 5000, incomeCount: 1, expenses: 2400, expenseCount: 12 }),
     },
+    prevDay: flows({ expenses: 80, expenseCount: 1 }),
+    prevWeek: flows({ expenses: 600, expenseCount: 4 }),
+    prevMonth: flows({ income: 4200, incomeCount: 1, expenses: 2100, expenseCount: 11 }),
     categoriesThisMonth: [
       { name: "Food", total: 900 },
       { name: "Transport", total: 500 },
@@ -177,4 +181,69 @@ test("answers are deterministic for the same snapshot", () => {
   const first = answerQuestion("What did I spend today?", snapshot());
   const second = answerQuestion("What did I spend today?", snapshot());
   assert.deepEqual(first, second);
+});
+
+test("greetings are greeted back with time, name and a live number", () => {
+  const result = answerQuestion("Hi", snapshot());
+  assert.match(result.answer, /Afternoon, Amos/); // fixed clock is noon
+  assert.match(result.answer, /K15,000 available/);
+  assert.match(result.answer, /K120 spent today/);
+});
+
+test("a greeting without a name still reads naturally", () => {
+  const anonymous = snapshot();
+  delete anonymous.name;
+  const result = answerQuestion("Hello", anonymous);
+  assert.match(result.answer, /^Afternoon 👋/);
+});
+
+test("thank-you messages get a friendly reply", () => {
+  const result = answerQuestion("Thanks!", snapshot());
+  assert.match(result.answer, /Happy to help/);
+  assert.notEqual(result.data.intent, "out_of_scope");
+});
+
+test("small talk answers with real numbers, not out-of-scope", () => {
+  const result = answerQuestion("How are you?", snapshot());
+  assert.match(result.answer, /K15,000 available/);
+  assert.match(result.answer, /52% savings rate/);
+  assert.doesNotMatch(result.answer, /Coffers finances/);
+});
+
+test("farewells are answered warmly", () => {
+  const result = answerQuestion("Bye", snapshot());
+  assert.match(result.answer, /See you/);
+});
+
+test("comparisons measure the window against the one before it", () => {
+  const result = answerQuestion("Did I spend more this week than last week?", snapshot());
+  assert.match(result.answer, /K900/);
+  assert.match(result.answer, /K300 more than the week before/);
+  assert.match(result.answer, /50% up/);
+});
+
+test("comparisons can be answered for income too", () => {
+  const result = answerQuestion("Did I earn more this month than last month?", snapshot());
+  assert.match(result.answer, /earned K5,000/);
+});
+
+test("category questions break spending down by category", () => {
+  const top = answerQuestion("Where did I spend the most?", snapshot());
+  assert.match(top.answer, /Food K900 \(38%\)/);
+
+  const named = answerQuestion("How much did I spend on food?", snapshot());
+  assert.match(named.answer, /Food: K900 this month/);
+  assert.match(named.answer, /38%/);
+});
+
+test("health checks return a short report card", () => {
+  const result = answerQuestion("How am I doing?", snapshot());
+  assert.match(result.answer, /Balance: K15,000/);
+  assert.match(result.answer, /you kept 52%/);
+  assert.match(result.answer, /On track/);
+});
+
+test("a bare period still answers as spending after small talk", () => {
+  const result = answerQuestion("and this week?", snapshot(), ["Thanks!"]);
+  assert.match(result.answer, /K900 so far this week/);
 });

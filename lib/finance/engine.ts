@@ -9,7 +9,7 @@
  */
 
 import { Types } from "mongoose";
-import { Account, Budget, ExpectedIncome, Goal, Reminder, Transaction } from "@/lib/models";
+import { Account, Budget, ExpectedIncome, Goal, Reminder, Transaction, User } from "@/lib/models";
 import { getAccountBalances } from "@/lib/utils/balances";
 
 import type { FlowTotals, MetaEnvelope, PeriodAnalysis } from "./types";
@@ -509,7 +509,7 @@ export async function buildAskSnapshot(
   filter: AskFilterInput = {},
   asOf: Date = new Date()
 ): Promise<AskSnapshot> {
-  const [balanceMap, accounts, expectedDocs, reminderDocs, goalDocs, budgetDocs] =
+  const [balanceMap, accounts, expectedDocs, reminderDocs, goalDocs, budgetDocs, userDoc] =
     await Promise.all([
       getAccountBalances(userId),
       Account.find({ userId }).lean(),
@@ -519,6 +519,7 @@ export async function buildAskSnapshot(
         .lean(),
       Goal.find({ userId, status: "active" }).lean(),
       Budget.find({ userId }).select("name amount categoryId items").lean(),
+      User.findById(userId).select("name").lean(),
     ]);
 
   const today = resolvePeriod("today", null, asOf);
@@ -526,13 +527,26 @@ export async function buildAskSnapshot(
   const week = resolvePeriod("week", null, asOf);
   const month = resolvePeriod("month", null, asOf);
 
-  const [todayFlows, yesterdayFlows, weekFlows, monthFlows, monthCategories] =
+  // The window immediately before each preset — powers "more than last
+  // week/month?" comparisons without a second round-trip.
+  const prevDayStart = new Date(today.start);
+  prevDayStart.setDate(prevDayStart.getDate() - 2);
+  const prevWeekStart = new Date(week.start);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevMonthStart = new Date(month.start);
+  prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+  const justBefore = (start: Date) => new Date(start.getTime() - 1);
+
+  const [todayFlows, yesterdayFlows, weekFlows, monthFlows, monthCategories, prevDayFlows, prevWeekFlows, prevMonthFlows] =
     await Promise.all([
       flowsFor(userId, today.start, today.end),
       flowsFor(userId, yesterday.start, yesterday.end),
       flowsFor(userId, week.start, week.end),
       flowsFor(userId, month.start, month.end),
       categoryBreakdownFor(userId, month.start, month.end),
+      flowsFor(userId, prevDayStart, justBefore(today.start)),
+      flowsFor(userId, prevWeekStart, justBefore(week.start)),
+      flowsFor(userId, prevMonthStart, justBefore(month.start)),
     ]);
 
   const dayOfMonth = asOf.getDate();
@@ -579,6 +593,7 @@ export async function buildAskSnapshot(
 
   return {
     now: asOf,
+    name: userDoc?.name || undefined,
     balance: {
       total: sum(balanceMap.values()),
       accounts: accounts.map((account) => ({
@@ -601,6 +616,9 @@ export async function buildAskSnapshot(
       week: weekFlows,
       month: monthFlows,
     },
+    prevDay: prevDayFlows,
+    prevWeek: prevWeekFlows,
+    prevMonth: prevMonthFlows,
     categoriesThisMonth: monthCategories.map((category) => ({
       name: category.name || "Other",
       total: category.total,
