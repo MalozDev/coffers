@@ -776,7 +776,7 @@ function AskTab() {
   };
 
   return (
-    <div className="space-y-4 pt-4">
+    <div className="pt-4 pb-16">
       <Card className="border-accent/20 bg-accent/5">
         <CardContent className="p-4">
           <div className="flex items-center justify-between gap-2 mb-3">
@@ -790,55 +790,62 @@ function AskTab() {
           {/* Conversation — scrolls on its own so the newest answer stays in view */}
           <div
             ref={listRef}
-            className="max-h-[60vh] min-h-[9rem] overflow-y-auto scroll-smooth space-y-3 pr-1 pb-1"
+            className="max-h-[58vh] min-h-[9rem] overflow-y-auto scroll-smooth space-y-3 pr-1 pb-1"
           >
-            {messages.map((msg, i) => (
-              <Card key={i} className={msg.role === "coffers" ? "border-accent/20" : ""}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-2">
-                    {msg.role === "coffers" && <Sparkles className="h-4 w-4 text-accent shrink-0 mt-0.5" />}
-                    <p className={`text-sm leading-relaxed whitespace-pre-line flex-1 ${msg.role === "user" ? "font-medium" : "text-muted-foreground"}`}>
-                      {msg.text}
-                    </p>
+            {/* Chat bubbles — questions right in primary, answers left in accent */}
+            {messages.map((msg, i) =>
+              msg.role === "user" ? (
+                <div key={i} className="flex justify-end">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary text-primary-foreground px-4 py-2.5 text-sm font-medium whitespace-pre-line">
+                    {msg.text}
                   </div>
-                  {msg.role === "coffers" && msg.suggestions && msg.suggestions.length > 0 && !loading && (
-                    <div className="flex flex-wrap gap-2 mt-3 pl-6">
-                      {msg.suggestions.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => setQuestion(suggestion)}
-                          className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
+                </div>
+              ) : (
+                <div key={i} className="flex justify-start">
+                  <div className="max-w-[92%]">
+                    <div className="flex items-start gap-2 rounded-2xl rounded-bl-sm border border-accent/30 bg-background px-4 py-2.5 text-sm text-foreground whitespace-pre-line">
+                      <Sparkles className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+                      <span className="flex-1">{msg.text}</span>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-            {loading && (
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm">Thinking...</span>
+                    {msg.suggestions && msg.suggestions.length > 0 && !loading && (
+                      <div className="flex flex-wrap gap-2 mt-2 pl-1">
+                        {msg.suggestions.map((suggestion) => (
+                          <button
+                            key={suggestion}
+                            type="button"
+                            onClick={() => setQuestion(suggestion)}
+                            className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              )
+            )}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm border border-accent/30 bg-background px-4 py-2.5 text-sm text-muted-foreground">
+                  <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  <span>Thinking...</span>
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Ask bar sits under the conversation — the newest reply appears right above it */}
-          <form onSubmit={handleAsk} className="flex gap-2 border-t border-border/60 pt-3 mt-1">
-            <Input placeholder="Ask about your money..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" disabled={loading} />
-            <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={loading || !question.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
         </CardContent>
       </Card>
+
+      {/* Ask bar — fixed just above the bottom nav so it is always reachable */}
+      <div className="fixed z-20 left-4 right-4 bottom-[calc(4rem+env(safe-area-inset-bottom))] lg:left-72 lg:right-8">
+        <form onSubmit={handleAsk} className="mx-auto max-w-2xl flex gap-2 rounded-2xl border border-accent/30 bg-card/95 backdrop-blur px-3 py-2.5 shadow-lg">
+          <Input placeholder="Ask about your money..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" disabled={loading} />
+          <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={loading || !question.trim()}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
