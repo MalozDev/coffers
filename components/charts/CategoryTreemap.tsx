@@ -23,12 +23,23 @@ const legible = {
   strokeLinejoin: "round",
 } as const;
 
-function Tile({ x, y, width, height, payload }: any) {
-  const item = payload?.payload || payload || {};
+/**
+ * recharts spreads the data item straight onto the node props (payload is
+ * only set on tooltip entries), so the category fields — name, total,
+ * percentage, colour — are read from the props themselves.
+ */
+function Tile(props: any) {
+  const { x, y, width, height } = props;
+  const item = props.payload?.payload || props.payload || props;
   const name = item.name || "Other";
   const total = Number(item.total ?? item.size ?? 0);
-  const percentage = Number(item.percentage ?? 0);
-  const fill = item.fill || "#3066be";
+  const rootTotal = Number(props.root?.value ?? 0);
+  const percentage = Number.isFinite(Number(item.percentage))
+    ? Number(item.percentage)
+    : rootTotal > 0
+    ? (total / rootTotal) * 100
+    : 0;
+  const fill = item.fill || item.color || colorFor(0);
 
   // Smallest tiles stay coloured (the tooltip carries the detail).
   if (width < 24 || height < 18) {
@@ -114,7 +125,7 @@ export default function CategoryTreemap({ data }: CategoryTreemapProps) {
       >
         <Tooltip
           formatter={(value: any, _name: any, item: any) => {
-            const entry = item?.payload?.payload || item?.payload || {};
+            const entry = item?.payload?.payload || item?.payload || item || {};
             const share = percentLabel(Number(entry.percentage ?? 0));
             return [`${formatK(Number(value))} · ${share}`, entry.name || "Category"];
           }}

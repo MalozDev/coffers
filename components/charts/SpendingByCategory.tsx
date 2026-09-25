@@ -124,23 +124,30 @@ export default function SpendingByCategory({ data }: SpendingByCategoryProps) {
         </PieChart>
       </ResponsiveContainer>
 
-      {/* Legend — every category with its share */}
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
+      {/* Legend — one row per category: full name, amount, share */}
+      <ul className="mt-3 space-y-1">
         {data.map((d, index) => (
-          <div key={d.name} className="flex items-center gap-2">
-            <div
-              className="w-2.5 h-2.5 rounded-full shrink-0"
+          <li
+            key={d.name}
+            className="flex items-center gap-2 rounded-lg px-2 py-1.5 even:bg-muted/50"
+          >
+            <span
+              className="h-3 w-3 shrink-0 rounded-[4px]"
               style={{ backgroundColor: colorFor(index, d.color) }}
             />
-            <span className="text-xs text-muted-foreground truncate flex-1">
-              {d.icon} {d.name}
+            <span className="min-w-0 flex-1 break-words text-sm text-foreground">
+              {d.icon ? `${d.icon} ` : ""}
+              {d.name}
             </span>
-            <span className="text-xs font-mono font-medium shrink-0">
-              {formatK(d.total)} · {percentLabel(d.percentage)}
+            <span className="shrink-0 font-mono text-sm tabular-nums">
+              {formatK(d.total)}
             </span>
-          </div>
+            <span className="w-14 shrink-0 text-right font-mono text-xs font-semibold tabular-nums text-muted-foreground">
+              {percentLabel(d.percentage)}
+            </span>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 }
