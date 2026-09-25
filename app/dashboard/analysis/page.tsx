@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -63,7 +63,7 @@ export default function AnalysisPage() {
     <div className="min-w-0 space-y-5">
       <div>
         <h1 className="text-xl font-bold text-foreground">Analysis</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">Financial intelligence & insights</p>
+        <p className="text-muted-foreground text-sm mt-0.5">Trends, patterns and forecasts</p>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
@@ -119,7 +119,7 @@ function OverviewTab() {
   }, [period, date]);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3, 4].map((i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load analysis. Please try again." : "No data"}</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Couldn't load analysis." : "No data"}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -314,7 +314,7 @@ function PatternsTab() {
   }, []);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load patterns. Please try again." : "Not enough data to detect patterns yet."}</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Couldn't load patterns." : "Not enough data for patterns yet."}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -465,7 +465,7 @@ function ForecastTab() {
   }, []);
 
   if (loading) return <div className="space-y-3 pt-4">{[1, 2, 3].map((i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)}</div>;
-  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Unable to load forecast. Please try again." : "No forecast data"}</p></CardContent></Card>;
+  if (!data) return <Card><CardContent><p className="text-center text-muted-foreground py-8">{error ? "Couldn't load forecast." : "No forecast data"}</p></CardContent></Card>;
 
   return (
     <div className="space-y-4 pt-4">
@@ -721,6 +721,15 @@ function AskTab() {
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // The chat is its own scroller — keep the newest answer in view so the
+  // user never has to scroll past old questions to find it.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, loading]);
 
   const handleAsk = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -777,7 +786,52 @@ function AskTab() {
             </button>
           </div>
           <p className="text-xs text-muted-foreground mb-3">Answers use your Coffers data.</p>
-          <form onSubmit={handleAsk} className="flex gap-2">
+
+          {/* Conversation — scrolls on its own so the newest answer stays in view */}
+          <div
+            ref={listRef}
+            className="max-h-[60vh] min-h-[9rem] overflow-y-auto scroll-smooth space-y-3 pr-1 pb-1"
+          >
+            {messages.map((msg, i) => (
+              <Card key={i} className={msg.role === "coffers" ? "border-accent/20" : ""}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-2">
+                    {msg.role === "coffers" && <Sparkles className="h-4 w-4 text-accent shrink-0 mt-0.5" />}
+                    <p className={`text-sm leading-relaxed whitespace-pre-line flex-1 ${msg.role === "user" ? "font-medium" : "text-muted-foreground"}`}>
+                      {msg.text}
+                    </p>
+                  </div>
+                  {msg.role === "coffers" && msg.suggestions && msg.suggestions.length > 0 && !loading && (
+                    <div className="flex flex-wrap gap-2 mt-3 pl-6">
+                      {msg.suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => setQuestion(suggestion)}
+                          className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+            {loading && (
+              <Card>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Thinking...</span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          {/* Ask bar sits under the conversation — the newest reply appears right above it */}
+          <form onSubmit={handleAsk} className="flex gap-2 border-t border-border/60 pt-3 mt-1">
             <Input placeholder="Ask about your money..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" disabled={loading} />
             <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={loading || !question.trim()}>
               <Send className="h-4 w-4" />
@@ -785,45 +839,6 @@ function AskTab() {
           </form>
         </CardContent>
       </Card>
-
-      <div className="space-y-3">
-        {messages.map((msg, i) => (
-          <Card key={i} className={msg.role === "coffers" ? "border-accent/20" : ""}>
-            <CardContent className="p-4">
-              <div className="flex items-start gap-2">
-                {msg.role === "coffers" && <Sparkles className="h-4 w-4 text-accent shrink-0 mt-0.5" />}
-                <p className={`text-sm leading-relaxed whitespace-pre-line flex-1 ${msg.role === "user" ? "font-medium" : "text-muted-foreground"}`}>
-                  {msg.text}
-                </p>
-              </div>
-              {msg.role === "coffers" && msg.suggestions && msg.suggestions.length > 0 && !loading && (
-                <div className="flex flex-wrap gap-2 mt-3 pl-6">
-                  {msg.suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      onClick={() => setQuestion(suggestion)}
-                      className="text-xs px-3 py-1.5 rounded-full bg-white border border-border hover:bg-muted transition-colors"
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-        {loading && (
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <div className="h-4 w-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm">Thinking...</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
     </div>
   );
 }
