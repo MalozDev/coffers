@@ -79,7 +79,7 @@ export async function buildNotificationDrafts(userId: string, now = new Date()):
         sourceKey: `goal:deadline:${goal._id}:${new Date(goal.targetDate).toISOString().slice(0, 10)}`,
         type: "info",
         title: `${goal.name} target date is near`,
-        message: `${money(remaining)} remains with ${daysUntil === 0 ? "today" : `${daysUntil} days`} left to reach this goal.`,
+        message: `${money(remaining)} to go — ${daysUntil === 0 ? "today" : `${daysUntil} days`} left.`,
       });
     }
   }
@@ -98,14 +98,14 @@ export async function buildNotificationDrafts(userId: string, now = new Date()):
         sourceKey: `budget:over:${budget._id}:${monthKey}`,
         type: "warning",
         title: `${budget.name} limit reached`,
-        message: `You've spent ${money(spent)} of your ${money(budget.amount)} ${budget.period} budget for ${categoryName}.`,
+        message: `${money(spent)} of ${money(budget.amount)} ${budget.period} budget spent on ${categoryName}.`,
       });
     } else if (percentage >= 80) {
       drafts.push({
         sourceKey: `budget:near:${budget._id}:${monthKey}`,
         type: "warning",
         title: `${budget.name} is nearly used`,
-        message: `You've used ${Math.round(percentage)}% of your ${categoryName} budget. ${money(budget.amount - spent)} remains.`,
+        message: `${Math.round(percentage)}% of the ${categoryName} budget used — ${money(budget.amount - spent)} left.`,
       });
     }
   }
@@ -118,7 +118,7 @@ export async function buildNotificationDrafts(userId: string, now = new Date()):
       sourceKey: `cash-flow:overspending:${monthKey}`,
       type: "warning",
       title: "Spending is running high",
-      message: `At ${money(expenses / Math.max(dayOfMonth, 1))} per day, spending may reach ${money(projectedExpenses)} this month against ${money(income)} income.`,
+      message: `Spending may reach ${money(projectedExpenses)} this month against ${money(income)} income.`,
     });
   }
 

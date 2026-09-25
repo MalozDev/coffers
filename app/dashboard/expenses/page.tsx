@@ -161,8 +161,8 @@ export default function ExpensesPage() {
     ) {
       setError(
         availableAcrossAccounts >= requestedAmount
-          ? "This account cannot cover the expense. Enable split payment and assign the amount across accounts."
-          : "Your accounts do not have enough available balance for this expense."
+          ? "This account is short. Split the payment across accounts."
+          : "Not enough balance across your accounts."
       );
       return;
     }
@@ -223,7 +223,7 @@ export default function ExpensesPage() {
       }
     } catch (err) {
       console.error(err);
-      setError("Network error. Please check your connection and try again.");
+      setError("Network error — try again.");
     }
     setSaving(false);
   };
@@ -341,9 +341,8 @@ export default function ExpensesPage() {
               parseFloat(amount) > (selectedAccount.currentBalance || 0) &&
               availableAcrossAccounts >= parseFloat(amount) && (
                 <p className="text-xs rounded-lg bg-blue-50 px-3 py-2 text-blue-700">
-                  {selectedAccount.name} cannot cover this alone, but your accounts
-                  can cover it together. Enable split payment to choose cash, mobile
-                  money, or bank amounts.
+                  {selectedAccount.name} can't cover it alone. Turn on split
+                  payment to share it across accounts.
                 </p>
               )}
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -376,8 +375,7 @@ export default function ExpensesPage() {
                   </div>
                 ))}
                 <p className="text-xs text-muted-foreground">
-                  Enter the exact amount paid from each account. The total must equal{" "}
-                  {amount ? `K${amount}` : "the expense"}.
+                  Amounts must add up to {amount ? `K${amount}` : "the total"}.
                 </p>
               </div>
             )}

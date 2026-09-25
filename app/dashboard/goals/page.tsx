@@ -142,7 +142,7 @@ export default function GoalsPage() {
       {loading ? (
         <div className="space-y-3">{[1, 2].map((i) => <div key={i} className="h-32 bg-muted rounded-xl animate-pulse" />)}</div>
       ) : goals.length === 0 ? (
-        <Card><CardContent><p className="text-center text-muted-foreground py-8">No savings goals yet. Set your first target!</p></CardContent></Card>
+        <Card><CardContent><p className="text-center text-muted-foreground py-8">No goals yet — set your first target.</p></CardContent></Card>
       ) : (
         <div className="space-y-3">
           {goals.map((g) => (

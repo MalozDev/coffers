@@ -126,7 +126,7 @@ export async function PATCH(
           }
           if (!Number.isFinite(price) || price <= 0) {
             return NextResponse.json(
-              { success: false, error: "Every checked item needs a price greater than 0" },
+              { success: false, error: "Every checked item needs a price above 0" },
               { status: 400 }
             );
           }
@@ -146,7 +146,7 @@ export async function PATCH(
         return NextResponse.json(
           {
             success: false,
-            error: `Confirm the price of "${unpriced.name}" before closing this budget.`,
+            error: `Confirm the price of "${unpriced.name}".`,
           },
           { status: 400 }
         );
@@ -176,7 +176,7 @@ export async function PATCH(
             return NextResponse.json(
               {
                 success: false,
-                error: `Not enough balance in ${account.name}. Available: K${Math.max(available, 0).toLocaleString()}, but the checked items total K${checkedTotal.toLocaleString()}. Choose another payment account or add funds first.`,
+                error: `${account.name} has K${Math.max(available, 0).toLocaleString()} but you need K${checkedTotal.toLocaleString()}. Pick another account or add funds.`,
                 availableBalance: available,
                 required: checkedTotal,
               },

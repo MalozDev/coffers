@@ -234,7 +234,7 @@ export default function IncomePage() {
     if (resolving[item._id]) return; // no double-taps
     const targetAccount = receivedAccount[item._id];
     if (!targetAccount) {
-      const message = "Choose the account where the income was received first.";
+      const message = "Choose the account the money landed in.";
       setError(message);
       showToast("error", message);
       return;
@@ -374,8 +374,8 @@ export default function IncomePage() {
       }
     } catch (err) {
       console.error(err);
-      setError("Network error. Please check your connection and try again.");
-      showToast("error", "Network error. Please check your connection and try again.");
+      setError("Network error — try again.");
+      showToast("error", "Network error — try again.");
     }
     setSaving(false);
   };
@@ -390,8 +390,8 @@ export default function IncomePage() {
     ) {
       setError(
         transferFromAccount === transferToAccount
-          ? "Choose different source and destination accounts."
-          : "Complete the transfer details first."
+          ? "Pick two different accounts."
+          : "Fill in the transfer details first."
       );
       return;
     }
@@ -432,8 +432,8 @@ export default function IncomePage() {
       window.dispatchEvent(new Event("coffers:data-updated"));
     } catch (transferError) {
       console.error(transferError);
-      setError("Network error. Please check your connection and try again.");
-      showToast("error", "Network error. Please check your connection and try again.");
+      setError("Network error — try again.");
+      showToast("error", "Network error — try again.");
     } finally {
       setTransferSaving(false);
     }
@@ -530,7 +530,7 @@ export default function IncomePage() {
           <CardContent className="p-4">
             <h2 className="text-sm font-semibold">Expected income</h2>
             <p className="text-xs text-muted-foreground mt-1 mb-3">
-              When it arrives, choose where the money actually went.
+              When it arrives, mark where it went.
             </p>
             <div className="space-y-3">
               {visibleExpected.map((item) => {
@@ -811,8 +811,7 @@ export default function IncomePage() {
           <DialogHeader>
             <DialogTitle>Move money</DialogTitle>
             <DialogDescription>
-              Move cash between your cash, mobile money, and bank accounts
-              without counting it as income.
+              Move money between your accounts. Not counted as income.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleTransferSubmit} className="space-y-4">
@@ -910,7 +909,7 @@ export default function IncomePage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add expected income</DialogTitle>
-            <DialogDescription>Plan money that has not arrived yet.</DialogDescription>
+            <DialogDescription>Money you haven't received yet.</DialogDescription>
           </DialogHeader>
           <form onSubmit={createExpectedIncome} className="space-y-3">
             <Input

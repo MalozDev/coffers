@@ -178,7 +178,7 @@ export default function RemindersPage() {
   const confirmComplete = async () => {
     if (!pending) return;
     if (!payFrom) {
-      setError("Choose the account the money should come from.");
+      setError("Choose the account to pay from.");
       return;
     }
     setConfirming(true);
@@ -429,7 +429,7 @@ export default function RemindersPage() {
               <CardContent>
                 <p className="text-center text-muted-foreground py-8">
                   {reminders.length === 0
-                    ? "No reminders yet. Add one to stay on top of your obligations."
+                    ? "No reminders yet."
                     : "No reminders match these filters."}
                 </p>
               </CardContent>
@@ -443,7 +443,7 @@ export default function RemindersPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add reminder</DialogTitle>
-            <DialogDescription>Stay ahead of bills and payments.</DialogDescription>
+            <DialogDescription>Bills and payments, on time.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
@@ -523,7 +523,7 @@ export default function RemindersPage() {
           <DialogHeader>
             <DialogTitle>Complete Reminder?</DialogTitle>
             <DialogDescription>
-              {pending ? `${formatK(pending.amount)} will be deducted from your selected account.` : ""}
+              {pending ? `${formatK(pending.amount)} will leave this account.` : ""}
             </DialogDescription>
           </DialogHeader>
 
@@ -565,14 +565,14 @@ export default function RemindersPage() {
             )}
             {payShort && payAccount && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                {payAccount.name} only has {formatK(payAccount.currentBalance || 0)} —
-                choose another account or add funds first.
+                {payAccount.name} has only {formatK(payAccount.currentBalance || 0)} —
+                pick another account or add funds.
               </p>
             )}
             {pending && accounts.length > 0 && !anyAccountCovers && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                No account holds {formatK(pending.amount)} yet. Add funds, or record
-                this as an expense instead.
+                No account holds {formatK(pending.amount)}. Add funds, or record
+                it as an expense instead.
               </p>
             )}
 
@@ -594,7 +594,7 @@ export default function RemindersPage() {
             </div>
             {pending?.recurrence === "none" && (
               <p className="text-[11px] text-muted-foreground text-center">
-                This once-off reminder will be closed after confirming.
+                This reminder closes after confirming.
               </p>
             )}
           </div>

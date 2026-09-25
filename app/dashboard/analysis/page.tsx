@@ -248,7 +248,7 @@ function OverviewTab() {
       <Card className="min-w-0">
         <CardContent className="p-4">
           <h3 className="mb-1 text-sm font-semibold">Income vs expenses</h3>
-          <p className="mb-2 text-xs text-muted-foreground">A quick view of where money went in this period.</p>
+          <p className="mb-2 text-xs text-muted-foreground">Where money went this period.</p>
           <IncomeExpensePie income={data.current.income} expenses={data.current.expenses} />
         </CardContent>
       </Card>
@@ -257,14 +257,14 @@ function OverviewTab() {
         <Card className="min-w-0">
           <CardContent className="p-4">
             <h3 className="mb-1 text-sm font-semibold">Transaction size distribution</h3>
-            <p className="mb-2 text-xs text-muted-foreground">Number of expenses in each amount range.</p>
+            <p className="mb-2 text-xs text-muted-foreground">Expenses per amount range.</p>
             {data.transactionAmounts?.length ? <ExpenseHistogram amounts={data.transactionAmounts} /> : <p className="py-12 text-center text-sm text-muted-foreground">No expense data for this period.</p>}
           </CardContent>
         </Card>
         <Card className="min-w-0">
           <CardContent className="p-4">
             <h3 className="mb-1 text-sm font-semibold">Spending concentration</h3>
-            <p className="mb-2 text-xs text-muted-foreground">Each tile shows the category and amount. Bigger tiles mean more spending.</p>
+            <p className="mb-2 text-xs text-muted-foreground">Bigger tiles mean more spending.</p>
             {data.categoryBreakdown?.length ? <CategoryTreemap data={data.categoryBreakdown} /> : <p className="py-12 text-center text-sm text-muted-foreground">No category data for this period.</p>}
           </CardContent>
         </Card>
@@ -599,7 +599,7 @@ function SimulateTab() {
           <div className="flex items-center gap-2 mb-3"><DollarSign className="h-4 w-4 text-accent" /><h3 className="text-sm font-semibold">What happens if I buy this?</h3></div>
           <form onSubmit={handleSimulate} className="space-y-3">
             <Input type="number" step="0.01" min="1" placeholder="Amount (K)" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-12 text-lg font-mono" />
-            <Input placeholder="What is it? (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className="h-11" />
+            <Input placeholder="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} className="h-11" />
             <Button type="submit" className="w-full h-12" disabled={loading}>
               {loading ? "Simulating..." : "Simulate Purchase"}
             </Button>
@@ -716,7 +716,7 @@ function AskTab() {
   }>>([
     {
       role: "coffers",
-      text: "Hey! I'm Coffers — ask me anything about your money: what you spent, what's coming up, whether you can afford something, or how your goals are going.",
+      text: "Ask me anything — spending, balances, bills, or goals.",
       suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
     },
   ]);
@@ -747,7 +747,7 @@ function AskTab() {
         ...prev,
         {
           role: "coffers",
-          text: error instanceof Error ? error.message : "I couldn't answer that just now. Please try again.",
+          text: error instanceof Error ? error.message : "Couldn't answer that just now.",
         },
       ]);
     } finally {
@@ -759,7 +759,7 @@ function AskTab() {
     setMessages([
       {
         role: "coffers",
-        text: "Hey! I'm Coffers — ask me anything about your money: what you spent, what's coming up, whether you can afford something, or how your goals are going.",
+        text: "Ask me anything — spending, balances, bills, or goals.",
         suggestions: ["What did I spend today?", "What's my balance?", "What's coming up?"],
       },
     ]);
@@ -776,7 +776,7 @@ function AskTab() {
               New conversation
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mb-3">Your answers are based on your Coffers data only.</p>
+          <p className="text-xs text-muted-foreground mb-3">Answers use your Coffers data.</p>
           <form onSubmit={handleAsk} className="flex gap-2">
             <Input placeholder="Ask about your money..." value={question} onChange={(e) => setQuestion(e.target.value)} className="flex-1 h-11" disabled={loading} />
             <Button type="submit" size="icon" className="h-11 w-11 shrink-0" disabled={loading || !question.trim()}>

@@ -224,8 +224,8 @@ export default function SavingsPage() {
       window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
-      setActionError("Could not create saving. Please try again.");
-      showToast("error", "Could not create saving. Please try again.");
+      setActionError("Could not create saving.");
+      showToast("error", "Could not create saving.");
     } finally {
       setSaving(false);
     }
@@ -255,8 +255,8 @@ export default function SavingsPage() {
       window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
-      setActionError("Could not return money. Please try again.");
-      showToast("error", "Could not return money. Please try again.");
+      setActionError("Could not return money.");
+      showToast("error", "Could not return money.");
     } finally {
       setSaving(false);
     }
@@ -264,7 +264,7 @@ export default function SavingsPage() {
 
   const handleCancel = async (goal: Goal) => {
     if (goal.currentAmount > 0 && !returnAccountId) {
-      setActionError("Choose where the available money should be returned.");
+      setActionError("Choose where the money goes back to.");
       return;
     }
     setSaving(true);
@@ -287,8 +287,8 @@ export default function SavingsPage() {
       window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
-      setActionError("Could not cancel this saving. Please try again.");
-      showToast("error", "Could not cancel this saving. Please try again.");
+      setActionError("Could not cancel this saving.");
+      showToast("error", "Could not cancel this saving.");
     } finally {
       setSaving(false);
     }
@@ -319,7 +319,7 @@ export default function SavingsPage() {
       window.dispatchEvent(new Event("coffers:data-updated"));
       await loadSavings();
     } catch {
-      showToast("error", "Could not delete this saving. Please try again.");
+      showToast("error", "Could not delete this saving.");
     } finally {
       setDeleting(false);
     }
@@ -330,7 +330,7 @@ export default function SavingsPage() {
       <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-xl font-bold text-foreground">Savings</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Choose a saving, then add money, return money, or cancel it.</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Add, return, or cancel money.</p>
         </div>
         <div className="flex gap-2">
         <Button size="sm" variant="outline" onClick={() => { setShowCreateForm(true); setActionError(""); }}><Plus className="h-4 w-4" /> Create saving</Button>
@@ -373,7 +373,7 @@ export default function SavingsPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Create a saving</DialogTitle>
-            <DialogDescription>Set a target first, then add money whenever you are ready.</DialogDescription>
+            <DialogDescription>Set a target, then add money.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-3">
             <Input placeholder="Saving name, e.g. Emergency fund" value={createName} onChange={(event) => setCreateName(event.target.value)} className="h-11" required />
@@ -381,7 +381,7 @@ export default function SavingsPage() {
               <Input type="number" min="1" step="0.01" placeholder="Target amount (K)" value={createTarget} onChange={(event) => setCreateTarget(event.target.value)} className="h-11 font-mono" required />
               <Input type="date" value={createDate} onChange={(event) => setCreateDate(event.target.value)} className="h-11" required />
             </div>
-            <Input type="number" min="0" step="0.01" placeholder="Monthly contribution (optional)" value={createMonthly} onChange={(event) => setCreateMonthly(event.target.value)} className="h-11 font-mono" />
+            <Input type="number" min="0" step="0.01" placeholder="Monthly contribution (K)" value={createMonthly} onChange={(event) => setCreateMonthly(event.target.value)} className="h-11 font-mono" />
             <div className="flex gap-2 pt-1">
               <Button type="button" variant="outline" className="flex-1 h-11" onClick={() => setShowCreateForm(false)}>Cancel</Button>
               <Button type="submit" className="flex-1 h-11" disabled={saving}>{saving ? "Creating..." : "Create saving"}</Button>
@@ -395,10 +395,10 @@ export default function SavingsPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add to an existing saving</DialogTitle>
-            <DialogDescription>Select the saving you want to grow. The amount leaves your chosen account straight away.</DialogDescription>
+            <DialogDescription>Pick a saving. Money leaves your account straight away.</DialogDescription>
           </DialogHeader>
           {activeGoals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No active savings to add to. Create a saving first.</p>
+            <p className="text-sm text-muted-foreground">No active savings yet — create one first.</p>
           ) : (
             <form onSubmit={handleSave} className="space-y-3">
               <div className="space-y-1.5">
@@ -414,7 +414,7 @@ export default function SavingsPage() {
                   <option value="">Choose account</option>
                   {fundingAccounts.map((account) => <option key={account._id} value={account._id}>{account.name} · {formatK(account.currentBalance || 0)}</option>)}
                 </select>
-                <p className="text-[11px] text-muted-foreground">This account is reduced by the amount you add.</p>
+                <p className="text-[11px] text-muted-foreground">This account pays the amount.</p>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm">Amount (K)</Label>
@@ -433,14 +433,14 @@ export default function SavingsPage() {
 
       {/* Balance trend graph removed by request */}
 
-      <Card><div className="px-4 pb-2 pt-4"><h3 className="text-sm font-semibold">Money held for goals</h3><p className="mt-1 text-xs text-muted-foreground">These balances are set aside for savings goals. To use them, record an expense from the savings account or move them to another account.</p></div>{data.accounts.length === 0 ? <p className="px-4 pb-6 pt-2 text-center text-sm text-muted-foreground">No goal savings accounts yet. Add money to a saving to create one automatically.</p> : <div className="divide-y divide-border border-t">{data.accounts.map((account) => <div key={account._id} className="flex items-center gap-3 px-4 py-3"><div className="shrink-0 rounded-lg bg-green-50 p-2 text-green-600"><Landmark className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-foreground">{account.name}</p><p className="text-xs text-muted-foreground">Goal balance</p></div><span className="shrink-0 font-mono text-sm font-semibold text-foreground">{formatK(account.balance)}</span></div>)}</div>}</Card>
+      <Card><div className="px-4 pb-2 pt-4"><h3 className="text-sm font-semibold">Money held for goals</h3><p className="mt-1 text-xs text-muted-foreground">Money set aside for your goals. Spend from it or move it out.</p></div>{data.accounts.length === 0 ? <p className="px-4 pb-6 pt-2 text-center text-sm text-muted-foreground">No goal accounts yet. Add money to a saving to create one.</p> : <div className="divide-y divide-border border-t">{data.accounts.map((account) => <div key={account._id} className="flex items-center gap-3 px-4 py-3"><div className="shrink-0 rounded-lg bg-green-50 p-2 text-green-600"><Landmark className="h-4 w-4" /></div><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium text-foreground">{account.name}</p><p className="text-xs text-muted-foreground">Goal balance</p></div><span className="shrink-0 font-mono text-sm font-semibold text-foreground">{formatK(account.balance)}</span></div>)}</div>}</Card>
 
       <section>
         <div className="mb-2 flex items-center justify-between"><h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Savings list</h2><span className="text-xs text-muted-foreground">Select a saving for actions</span></div>
         {filteredGoals.length === 0 ? <Card><CardContent className="py-8 text-center text-sm text-muted-foreground">No {filter} savings match this date filter.{filter === "active" && dateFilter === "all" && <div className="mt-3">Use Create saving above to set your first target.</div>}</CardContent></Card> : <div className="space-y-2">{filteredGoals.map((goal) => { return <div key={goal._id} className={`flex items-center gap-1 rounded-xl border bg-card transition-colors ${selectedGoalId === goal._id ? "border-accent ring-1 ring-accent/30" : "border-border hover:border-accent/50"}`}><button type="button" onClick={() => { setSelectedGoalId(goal._id); resetSelectedActions(); }} className="min-w-0 flex-1 p-4 text-left"><div className="flex items-center justify-between gap-3"><span className="truncate text-sm font-semibold">{goal.name}</span><GoalStatusBadge status={goal.status} /></div><p className="mt-2.5 text-xl font-mono font-bold leading-none text-foreground">{formatK(goal.currentAmount)}<span className="ml-1.5 align-baseline text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">saved</span></p><p className="mt-1.5 text-xs text-muted-foreground">of {formatK(goal.targetAmount)} target</p></button><Button variant="ghost" size="icon" className="mr-2 h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive" aria-label={`Delete ${goal.name}`} onClick={() => setDeleteGoal(goal)}><Trash2 className="h-4 w-4" /></Button></div>; })}</div>}
       </section>
 
-      {selectedGoal && <div ref={selectedPanelRef}><Card><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected saving</p><h3 className="mt-1 text-base font-semibold">{selectedGoal.name}</h3></div><GoalStatusBadge status={selectedGoal.status} /></div><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="mt-1 font-mono text-lg font-bold">{formatK(selectedGoal.currentAmount)}</p></div><div className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Target</p><p className="mt-1 font-mono text-lg font-bold">{formatK(selectedGoal.targetAmount)}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{selectedGoal.status === "active" && <Button size="sm" onClick={() => { setSaveGoalId(selectedGoal._id); setShowSaveForm(true); }}><Plus className="h-4 w-4" /> Add money</Button>}{selectedGoal.currentAmount > 0 && <Button size="sm" variant="outline" onClick={() => { setShowReturnForm(!showReturnForm); setShowCancelConfirm(false); setActionError(""); }}><Undo2 className="h-4 w-4" /> Return money</Button>}{selectedGoal.status === "active" && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setShowCancelConfirm(!showCancelConfirm); setShowReturnForm(false); setActionError(""); }}><X className="h-4 w-4" /> Cancel saving</Button>}<Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => setDeleteGoal(selectedGoal)} aria-label="Delete saving"><Trash2 className="h-4 w-4" /> Delete</Button></div>{showReturnForm && <form onSubmit={(event) => { event.preventDefault(); handleReturn(selectedGoal); }} className="mt-4 space-y-3 rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Return some or all of this saving. The goal stays available.</p><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><select value={returnAccountId} onChange={(event) => setReturnAccountId(event.target.value)} className="h-10 rounded-xl border border-input bg-white px-3 text-sm" required><option value="">Return to account</option>{fundingAccounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select><Input type="number" min="0.01" max={selectedGoal.currentAmount} step="0.01" placeholder={`Up to ${formatK(selectedGoal.currentAmount)}`} value={returnAmount} onChange={(event) => setReturnAmount(event.target.value)} className="h-10 font-mono" required /></div><Button type="submit" className="h-10 w-full" disabled={saving}>{saving ? "Returning..." : "Return money"}</Button></form>}{showCancelConfirm && <div className="mt-4 space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3"><p className="text-xs text-muted-foreground">This marks the saving as cancelled. Any available balance will be returned first.</p>{selectedGoal.currentAmount > 0 && <select value={returnAccountId} onChange={(event) => setReturnAccountId(event.target.value)} className="h-10 w-full rounded-xl border border-input bg-white px-3 text-sm" required><option value="">Return available money to...</option>{fundingAccounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select>}<div className="flex gap-2"><Button type="button" variant="destructive" className="flex-1" disabled={saving} onClick={() => handleCancel(selectedGoal)}>{saving ? "Cancelling..." : "Confirm cancellation"}</Button><Button type="button" variant="ghost" onClick={() => setShowCancelConfirm(false)}>Keep saving</Button></div></div>}</CardContent></Card></div>}
+      {selectedGoal && <div ref={selectedPanelRef}><Card><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Selected saving</p><h3 className="mt-1 text-base font-semibold">{selectedGoal.name}</h3></div><GoalStatusBadge status={selectedGoal.status} /></div><div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Saved</p><p className="mt-1 font-mono text-lg font-bold">{formatK(selectedGoal.currentAmount)}</p></div><div className="rounded-lg bg-muted/60 p-3"><p className="text-xs text-muted-foreground">Target</p><p className="mt-1 font-mono text-lg font-bold">{formatK(selectedGoal.targetAmount)}</p></div></div><div className="mt-4 flex flex-wrap gap-2">{selectedGoal.status === "active" && <Button size="sm" onClick={() => { setSaveGoalId(selectedGoal._id); setShowSaveForm(true); }}><Plus className="h-4 w-4" /> Add money</Button>}{selectedGoal.currentAmount > 0 && <Button size="sm" variant="outline" onClick={() => { setShowReturnForm(!showReturnForm); setShowCancelConfirm(false); setActionError(""); }}><Undo2 className="h-4 w-4" /> Return money</Button>}{selectedGoal.status === "active" && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { setShowCancelConfirm(!showCancelConfirm); setShowReturnForm(false); setActionError(""); }}><X className="h-4 w-4" /> Cancel saving</Button>}<Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive" onClick={() => setDeleteGoal(selectedGoal)} aria-label="Delete saving"><Trash2 className="h-4 w-4" /> Delete</Button></div>{showReturnForm && <form onSubmit={(event) => { event.preventDefault(); handleReturn(selectedGoal); }} className="mt-4 space-y-3 rounded-lg border border-border p-3"><p className="text-xs text-muted-foreground">Take money back. The saving stays active.</p><div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><select value={returnAccountId} onChange={(event) => setReturnAccountId(event.target.value)} className="h-10 rounded-xl border border-input bg-white px-3 text-sm" required><option value="">Return to account</option>{fundingAccounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select><Input type="number" min="0.01" max={selectedGoal.currentAmount} step="0.01" placeholder={`Up to ${formatK(selectedGoal.currentAmount)}`} value={returnAmount} onChange={(event) => setReturnAmount(event.target.value)} className="h-10 font-mono" required /></div><Button type="submit" className="h-10 w-full" disabled={saving}>{saving ? "Returning..." : "Return money"}</Button></form>}{showCancelConfirm && <div className="mt-4 space-y-3 rounded-lg border border-destructive/20 bg-destructive/5 p-3"><p className="text-xs text-muted-foreground">Cancels this saving and returns the balance.</p>{selectedGoal.currentAmount > 0 && <select value={returnAccountId} onChange={(event) => setReturnAccountId(event.target.value)} className="h-10 w-full rounded-xl border border-input bg-white px-3 text-sm" required><option value="">Return available money to...</option>{fundingAccounts.map((account) => <option key={account._id} value={account._id}>{account.name}</option>)}</select>}<div className="flex gap-2"><Button type="button" variant="destructive" className="flex-1" disabled={saving} onClick={() => handleCancel(selectedGoal)}>{saving ? "Cancelling..." : "Confirm cancellation"}</Button><Button type="button" variant="ghost" onClick={() => setShowCancelConfirm(false)}>Keep saving</Button></div></div>}</CardContent></Card></div>}
 
       {/* Delete saving confirmation */}
       <Dialog open={!!deleteGoal} onOpenChange={(open) => { if (!open) setDeleteGoal(null); }}>
@@ -451,7 +451,7 @@ export default function SavingsPage() {
           </DialogHeader>
           {deleteGoal && deleteGoal.currentAmount > 0 && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              This saving still holds {formatK(deleteGoal.currentAmount)}. Return or cancel it first so the money goes back to an account.
+              This saving still holds {formatK(deleteGoal.currentAmount)}. Return or cancel it first.
             </p>
           )}
           <div className="flex gap-2">

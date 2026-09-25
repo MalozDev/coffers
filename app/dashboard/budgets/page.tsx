@@ -271,7 +271,7 @@ export default function BudgetsPage() {
         body: JSON.stringify(payload),
       });
     } catch {
-      const message = "Network hiccup — please try again";
+      const message = "Network error — try again";
       setError(message);
       return { ok: false, status: 0, error: message };
     }
@@ -306,7 +306,7 @@ export default function BudgetsPage() {
     const data = res ? await res.json().catch(() => ({ success: false })) : null;
     if (!res || !data) {
       setCreating(false);
-      setError("Network hiccup — please try again");
+      setError("Network error — try again");
       return;
     }
     setCreating(false);
@@ -404,8 +404,8 @@ export default function BudgetsPage() {
         accountNameOf(selected as Budget);
       setLastDeduct(
         amount > 0
-          ? `Budget closed. ${formatK(amount)} was deducted from ${fromName || "the payment account"}.`
-          : "Budget closed. No checked items were due for payment."
+          ? `Closed — ${formatK(amount)} taken from ${fromName || "the payment account"}.`
+          : "Closed — nothing to pay."
       );
       load();
       // The close moved money — refresh balances for the next decision
@@ -418,7 +418,7 @@ export default function BudgetsPage() {
     } else {
       // Keep the dialog open so the reason (e.g. not enough balance) stays
       // visible right next to the payment picker.
-      setCloseError(result?.error || "Network hiccup — please try again");
+      setCloseError(result?.error || "Network error — try again");
     }
   };
 
@@ -440,7 +440,7 @@ export default function BudgetsPage() {
       if (viewId === deleteTarget._id) setViewId(null);
       setDeleteTarget(null);
     } catch {
-      setError("Network hiccup — please try again");
+      setError("Network error — try again");
     } finally {
       setDeleting(false);
     }
@@ -551,7 +551,7 @@ export default function BudgetsPage() {
                 {paymentName}
               </p>
               <p className="text-[10px] text-muted-foreground">
-                Deducted when this budget closes
+                Paid when this budget closes
               </p>
             </div>
           </div>
@@ -597,7 +597,7 @@ export default function BudgetsPage() {
 
           {items.length === 0 ? (
             <p className="text-center text-sm text-muted-foreground py-6">
-              No items yet — add your first item below.
+              No items yet — add one below.
             </p>
           ) : (
             <ul className="mt-3 divide-y divide-border">
@@ -697,7 +697,7 @@ export default function BudgetsPage() {
           </div>
         ) : (
           <p className="text-center text-xs text-muted-foreground pb-4">
-            This budget was closed on {fmtTs(selected.closedAt)}.
+            Closed {fmtTs(selected.closedAt)}.
           </p>
         )}
 
@@ -706,11 +706,7 @@ export default function BudgetsPage() {
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
               <DialogTitle>Add budget item</DialogTitle>
-              <DialogDescription>
-                Items you check off are deducted when the budget closes. Leave
-                the amount blank now if you don't know it yet — you'll confirm
-                the real price at checkout.
-              </DialogDescription>
+              <DialogDescription>Tick items as you buy them.</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddItems} className="space-y-3">
               <div className="space-y-2">
@@ -733,7 +729,7 @@ export default function BudgetsPage() {
                       type="number"
                       step="0.01"
                       min="0.01"
-                      placeholder="Amount (optional)"
+                      placeholder="Amount"
                       value={row.price}
                       onChange={(e) =>
                         setItemRows((current) =>
@@ -773,8 +769,7 @@ export default function BudgetsPage() {
                 <Plus className="h-4 w-4" /> Add another item
               </Button>
               <p className="text-[11px] text-muted-foreground">
-                Not sure of the price? Skip it — you'll confirm the real amount
-                for each checked item at checkout.
+                Skip the price — confirm it at checkout.
               </p>
               <div className="flex gap-2 pt-1">
                 <Button
@@ -799,9 +794,7 @@ export default function BudgetsPage() {
             <DialogHeader>
               <DialogTitle>Checkout &amp; close budget</DialogTitle>
               <DialogDescription>
-                Confirm what each checked item actually cost — estimates often
-                differ from the till. Only checked items are deducted from the
-                payment account.
+                Confirm the final prices. Only checked items are charged.
               </DialogDescription>
             </DialogHeader>
 
@@ -820,12 +813,12 @@ export default function BudgetsPage() {
                 <div className="flex items-baseline justify-between">
                   <Label className="text-xs font-semibold">Confirm prices</Label>
                   <span className="text-[11px] text-muted-foreground">
-                    edit to the real amount
+                    edit if different
                   </span>
                 </div>
                 {checkedItems.length === 0 ? (
                   <p className="rounded-lg bg-muted px-3 py-2 text-[11px] text-muted-foreground">
-                    No items checked — nothing will be charged.
+                    Nothing checked — nothing to pay.
                   </p>
                 ) : (
                   checkedItems.map((item) => (
@@ -856,8 +849,7 @@ export default function BudgetsPage() {
                 )}
                 {unpricedChecked.length > 0 && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                    Add a price for {unpricedChecked.map((i) => i.name).join(", ")} —
-                    every checked item needs an amount before checkout.
+                    Add a price for {unpricedChecked.map((i) => i.name).join(", ")}.
                   </p>
                 )}
               </div>
@@ -882,18 +874,17 @@ export default function BudgetsPage() {
                   })}
                 </select>
                 <p className="text-[11px] text-muted-foreground">
-                  {formatK(checkoutTotal)} will be deducted from this account.
+                  {formatK(checkoutTotal)} will leave this account.
                 </p>
                 {closeAccountShort && closeAccount && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                    {closeAccount.name} only has {formatK(closeAccount.currentBalance || 0)} —
-                    choose another account or add funds first.
+                    {closeAccount.name} has only {formatK(closeAccount.currentBalance || 0)} —
+                    pick another account or add funds.
                   </p>
                 )}
                 {noAccountCovers && (
                   <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
-                    No account holds {formatK(checkoutTotal)} yet. Add funds before
-                    closing this budget.
+                    No account holds {formatK(checkoutTotal)} — add funds first.
                   </p>
                 )}
               </div>
@@ -943,7 +934,7 @@ export default function BudgetsPage() {
         <div>
           <h1 className="text-xl font-bold text-foreground">Budgets</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            List what you plan to buy, tick it off, close it out
+            Plan purchases, tick them off, close it out
           </p>
         </div>
         <Button
@@ -1001,9 +992,7 @@ export default function BudgetsPage() {
           <CardContent className="py-10 text-center">
             <ShoppingCart className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">
-              {budgets.length === 0
-                ? "No budgets yet. Create one and start listing items."
-                : "No budgets match these filters."}
+              {budgets.length === 0 ? "No budgets yet." : "No budgets match these filters."}
             </p>
           </CardContent>
         </Card>
@@ -1082,7 +1071,7 @@ export default function BudgetsPage() {
           <DialogHeader>
             <DialogTitle>New budget</DialogTitle>
             <DialogDescription>
-              Set the spending limit and the account this budget is paid from.
+              Set a limit and the account it's paid from.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCreate} className="space-y-4">
@@ -1098,7 +1087,7 @@ export default function BudgetsPage() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm">Spending limit (K) — optional</Label>
+              <Label className="text-sm">Spending limit (K)</Label>
               <Input
                 type="number"
                 min="0.01"
@@ -1124,7 +1113,7 @@ export default function BudgetsPage() {
                 ))}
               </select>
               <p className="text-[11px] text-muted-foreground">
-                Checked items are deducted from this account when the budget closes.
+                Checked items are paid from this account.
               </p>
             </div>
             <div className="flex gap-2 pt-1">
@@ -1155,8 +1144,8 @@ export default function BudgetsPage() {
           <DialogHeader>
             <DialogTitle>Delete budget?</DialogTitle>
             <DialogDescription>
-              &ldquo;{deleteTarget?.name}&rdquo; will be removed permanently. Expense
-              transactions already recorded are kept.
+              &ldquo;{deleteTarget?.name}&rdquo; will be deleted. Recorded expenses
+              stay.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2">

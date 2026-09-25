@@ -121,7 +121,7 @@ export default function QuickEntryModal({
         showToast("error", message);
       }
     } catch {
-      const message = "Network error. Please check your connection and try again.";
+      const message = "Network error — try again.";
       setError(message);
       showToast("error", message);
     }

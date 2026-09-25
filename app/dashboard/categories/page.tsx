@@ -72,7 +72,7 @@ export default function CategoriesPage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add category</DialogTitle>
-            <DialogDescription>Create a category for your {tab} transactions.</DialogDescription>
+            <DialogDescription>New {tab} category.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">

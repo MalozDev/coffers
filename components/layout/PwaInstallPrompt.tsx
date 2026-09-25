@@ -58,7 +58,7 @@ export default function PwaInstallPrompt() {
           <div className="rounded-xl bg-primary p-2 text-primary-foreground"><Download className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Install Coffers</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Keep your finances one tap away with the Coffers app.</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Your money, one tap away.</p>
           </div>
           <Button type="button" variant="ghost" size="icon-xs" onClick={dismiss} aria-label="Dismiss install prompt"><X className="h-4 w-4" /></Button>
         </div>

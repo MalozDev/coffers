@@ -278,7 +278,7 @@ export default function SettingsPage() {
               <DialogHeader>
                 <DialogTitle>Add account</DialogTitle>
                 <DialogDescription>
-                  New accounts are available everywhere you pick an account.
+                  Use it anywhere you pick an account.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={addAccount} className="space-y-4">

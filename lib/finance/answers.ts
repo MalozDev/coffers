@@ -630,7 +630,7 @@ function incomeAnswer(snapshot: AskSnapshot): AskAnswer {
 export function greetingAnswer(): AskAnswer {
   return {
     answer:
-      "Hey! I'm Coffers — ask me anything about your money: what you spent, what's coming up, whether you can afford something, or how your goals are going.",
+      "Ask me anything — spending, balances, bills, or goals.",
     data: { intent: "greeting" },
     suggestions: SUGGESTIONS.greeting,
   };
